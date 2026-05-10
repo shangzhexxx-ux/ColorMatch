@@ -1,0 +1,221 @@
+@import "tailwindcss";
+
+:root {
+  --cm-paper: #f6f1e8;
+  --cm-surface: #fffcf6;
+  --cm-surface-2: #efe7db;
+  --cm-ink: #1f1a16;
+  --cm-ink-2: #5e544c;
+  --cm-ink-3: #8a7f76;
+  --cm-brass: #b08d57;
+  --cm-wine: #7a3b37;
+  --cm-border: rgba(31, 26, 22, 0.14);
+  --cm-border-strong: rgba(31, 26, 22, 0.26);
+  --cm-btn: #2a241f;
+  --cm-btn-hover: #332b25;
+  --cm-btn-active: #241f1b;
+  --cm-btn-text: #fffcf6;
+  --background: var(--cm-paper);
+  --foreground: var(--cm-ink);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-inter), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--cm-brass) 28%, transparent);
+}
+
+/* Respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Upload file input — full-width styled button, constrained to its grid cell */
+.cm-file {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  max-width: 100%;
+  border: 0;
+  background: transparent;
+  color: transparent;
+  font-size: 0;
+  display: block;
+  cursor: pointer;
+  outline: none;
+  padding: 0;
+  margin: 0;
+}
+
+.cm-file::-webkit-file-upload-button {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  max-width: 100%;
+  border: 1px solid var(--cm-border);
+  border-radius: 12px;
+  height: 48px;
+  min-height: 48px;
+  padding: 0 16px;
+  background: var(--cm-btn);
+  color: var(--cm-btn-text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 150ms ease-out, transform 100ms ease-out, box-shadow 150ms ease-out;
+  display: block;
+  box-shadow: inset 0 1px 0 rgba(255, 252, 246, 0.08), 0 1px 0 rgba(31, 26, 22, 0.08), 0 10px 22px rgba(31, 26, 22, 0.09);
+  font-family: inherit;
+  line-height: 48px;
+  text-align: center;
+  user-select: none;
+}
+
+.cm-file::-webkit-file-upload-button:hover {
+  background: var(--cm-btn-hover);
+  border-color: color-mix(in srgb, var(--cm-brass) 60%, var(--cm-border));
+  box-shadow: inset 0 1px 0 rgba(255, 252, 246, 0.10), 0 1px 0 rgba(31, 26, 22, 0.10), 0 14px 30px rgba(31, 26, 22, 0.12);
+}
+
+.cm-file::-webkit-file-upload-button:active {
+  background: var(--cm-btn-active);
+  transform: scale(0.98);
+  box-shadow: none;
+}
+
+.cm-file::-webkit-file-upload-button:focus-visible {
+  outline: 2px solid var(--cm-brass);
+  outline-offset: 2px;
+}
+
+.cm-file::file-selector-button {
+  width: 100%;
+  max-width: 100%;
+  border: 1px solid var(--cm-border);
+  border-radius: 12px;
+  height: 48px;
+  min-height: 48px;
+  padding: 0 16px;
+  background: var(--cm-btn);
+  color: var(--cm-btn-text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 150ms ease-out, transform 100ms ease-out, box-shadow 150ms ease-out;
+  display: block;
+  box-shadow: inset 0 1px 0 rgba(255, 252, 246, 0.08), 0 1px 0 rgba(31, 26, 22, 0.08), 0 10px 22px rgba(31, 26, 22, 0.09);
+  font-family: inherit;
+  line-height: 48px;
+  text-align: center;
+  user-select: none;
+  margin-right: 0;
+}
+
+.cm-file::file-selector-button:hover {
+  background: var(--cm-btn-hover);
+  border-color: color-mix(in srgb, var(--cm-brass) 60%, var(--cm-border));
+  box-shadow: inset 0 1px 0 rgba(255, 252, 246, 0.10), 0 1px 0 rgba(31, 26, 22, 0.10), 0 14px 30px rgba(31, 26, 22, 0.12);
+}
+
+.cm-file::file-selector-button:active {
+  background: var(--cm-btn-active);
+  transform: scale(0.98);
+  box-shadow: none;
+}
+
+/* Upload button (backup/label-trigger style) */
+.cm-upload-btn {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 12px;
+  height: 48px;
+  min-height: 48px;
+  padding: 0 16px;
+  background: var(--cm-btn);
+  color: var(--cm-btn-text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  transition: background 150ms ease-out, transform 100ms ease-out, box-shadow 150ms ease-out;
+  border: none;
+  font-family: inherit;
+  line-height: 48px;
+}
+
+.cm-upload-btn:hover {
+  background: var(--cm-btn-hover);
+  box-shadow: inset 0 1px 0 rgba(255, 252, 246, 0.10), 0 10px 22px rgba(31, 26, 22, 0.12);
+}
+
+.cm-upload-btn:active {
+  background: var(--cm-btn-active);
+  transform: scale(0.98);
+}
+
+.cm-upload-btn:focus-visible {
+  outline: 2px solid var(--cm-brass);
+  outline-offset: 2px;
+}
+
+html.cm-preview-active .cm-home-header,
+html.cm-preview-active .cm-home-footer {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/* Scheme card horizontal scroll — smooth inertia, hidden scrollbar */
+.scheme-scroll {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scheme-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* Tab panel fade-in transition */
+.tab-panel {
+  animation: tabFadeIn 200ms ease-out both;
+}
+
+@keyframes tabFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
