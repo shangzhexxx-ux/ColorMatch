@@ -18,7 +18,10 @@ interface FontOption {
   cssVar: string;
 }
 
-type MobileTab = 'presets' | 'colors' | 'text';
+type MobileTab = 'presets' | 'colors' | 'text' | 'crop';
+
+type CropState = { x: number; y: number; scale: number };
+const DEFAULT_CROP: CropState = { x: 0, y: 0, scale: 1 };
 
 const FONT_OPTIONS: FontOption[] = [
   { name: '衬线', value: 'Playfair Display', style: 'italic', cssVar: 'var(--font-playfair)' },
@@ -46,8 +49,20 @@ export default function ImageEditor() {
   const [mousePos, setMousePos] = useState<{x: number, y: number} | null>(null);
   const [mobileTab, setMobileTab] = useState<MobileTab>('presets');
   const [selectedFontIndex, setSelectedFontIndex] = useState<number>(0);
+  const [textScale, setTextScale] = useState<number>(1);
   const [exportPreviewUrl, setExportPreviewUrl] = useState<string>("");
   const [mobileUiNonce, setMobileUiNonce] = useState<number>(0);
+  const [isCropMode, setIsCropMode] = useState<boolean>(false);
+  const [crop, setCrop] = useState<CropState>(DEFAULT_CROP);
+  const [isCropDragging, setIsCropDragging] = useState<boolean>(false);
+
+  const textScalePct = (() => {
+    const min = 0.7;
+    const max = 1.8;
+    const v = Number.isFinite(textScale) ? textScale : 1;
+    const pct = ((v - min) / (max - min)) * 100;
+    return Math.max(0, Math.min(100, pct));
+  })();
   
   useEffect(() => {
     if (!customBgColor || !/^#[0-9A-Fa-f]{6}$/.test(customBgColor)) return;
@@ -87,6 +102,10 @@ export default function ImageEditor() {
   
   const mobileImgRef = useRef<HTMLImageElement>(null);
   const desktopImgRef = useRef<HTMLImageElement>(null);
+  const mobilePreviewCardRef = useRef<HTMLDivElement>(null);
+  const desktopPreviewCardRef = useRef<HTMLDivElement>(null);
+  const mobileCropViewportRef = useRef<HTMLDivElement>(null);
+  const desktopCropViewportRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const colorPickerCanvasRef = useRef<HTMLCanvasElement>(null);
   const editorRootRef = useRef<HTMLDivElement>(null);
@@ -98,10 +117,47 @@ export default function ImageEditor() {
   const dateRequestIdRef = useRef(0);
   const dateValueRef = useRef<string>("");
   const pickerPointRef = useRef<{ x: number; y: number } | null>(null);
+  const cropPointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const cropGestureRef = useRef<
+    | null
+    | {
+        mode: "drag";
+        rect: DOMRect;
+        pointerId: number;
+        startPointerX: number;
+        startPointerY: number;
+        startCropX: number;
+        startCropY: number;
+      }
+    | {
+        mode: "pinch";
+        rect: DOMRect;
+        startScale: number;
+        startCropX: number;
+        startCropY: number;
+        startCenterX: number;
+        startCenterY: number;
+        startDistance: number;
+      }
+  >(null);
+  const cropActiveViewportKeyRef = useRef<"mobile" | "desktop" | null>(null);
   const mobileScrollRef = useRef<HTMLDivElement>(null);
   const mobileControlsRef = useRef<HTMLDivElement>(null);
   const mobilePreviewRef = useRef<HTMLDivElement>(null);
   const lastMobileFocusActiveRef = useRef(false);
+  const cropModeWantedRef = useRef(false);
+  const [cropViewport, setCropViewport] = useState<{ mobile: { w: number; h: number }; desktop: { w: number; h: number } }>(
+    { mobile: { w: 0, h: 0 }, desktop: { w: 0, h: 0 } }
+  );
+  const lastCropViewportRef = useRef<{ mobile: { w: number; h: number }; desktop: { w: number; h: number } }>({
+    mobile: { w: 0, h: 0 },
+    desktop: { w: 0, h: 0 },
+  });
+  const getViewportOrLast = (key: "mobile" | "desktop") => {
+    const cur = cropViewport[key];
+    if (cur.w > 0 && cur.h > 0) return cur;
+    return lastCropViewportRef.current[key];
+  };
   const isMobileNow = () => {
     try {
       const ua = typeof navigator !== "undefined" ? navigator.userAgent || "" : "";
@@ -114,6 +170,425 @@ export default function ImageEditor() {
     }
   };
 
+  useEffect(() => {
+    if (cropViewport.mobile.w > 0 && cropViewport.mobile.h > 0) {
+      lastCropViewportRef.current.mobile = cropViewport.mobile;
+    }
+    if (cropViewport.desktop.w > 0 && cropViewport.desktop.h > 0) {
+      lastCropViewportRef.current.desktop = cropViewport.desktop;
+    }
+  }, [cropViewport.mobile.w, cropViewport.mobile.h, cropViewport.desktop.w, cropViewport.desktop.h]);
+
+  useEffect(() => {
+    if (!isMobileNow()) return;
+    if (mobileTab !== "crop") {
+      cropModeWantedRef.current = false;
+      if (isCropMode) setIsCropMode(false);
+      return;
+    }
+    cropModeWantedRef.current = true;
+    if (isPickerMode) return;
+    if (!isCropMode) setIsCropMode(true);
+  }, [mobileTab, isPickerMode, isCropMode]);
+
+  useEffect(() => {
+    if (!isCropMode) return;
+    if (typeof window === "undefined") return;
+    const raf = window.requestAnimationFrame(() => {
+      const desktopEl = desktopCropViewportRef.current;
+      const mobileEl = mobileCropViewportRef.current;
+      const desktopRect = desktopEl?.getBoundingClientRect();
+      const mobileRect = mobileEl?.getBoundingClientRect();
+      const useDesktop = !!desktopRect && desktopRect.width > 0 && desktopRect.height > 0;
+      const rect = useDesktop ? desktopRect : mobileRect;
+      const key: "mobile" | "desktop" = useDesktop ? "desktop" : "mobile";
+      if (!rect) return;
+      const vw = (useDesktop ? desktopEl?.clientWidth : mobileEl?.clientWidth) || rect.width;
+      const vh = (useDesktop ? desktopEl?.clientHeight : mobileEl?.clientHeight) || rect.height;
+      if (!vw || !vh) return;
+
+      lastCropViewportRef.current[key] = { w: vw, h: vh };
+      setCropViewport((prev) => {
+        const cur = prev[key];
+        if (Math.abs(cur.w - vw) < 0.5 && Math.abs(cur.h - vh) < 0.5) return prev;
+        return { ...prev, [key]: { w: vw, h: vh } };
+      });
+
+      setCrop((prev) => {
+        const scale = clampCropScale(prev.scale);
+        const bounds = getCropBounds(vw, vh, scale);
+        const clamped = clampCropXY(prev.x, prev.y, bounds);
+        if (clamped.x === prev.x && clamped.y === prev.y && scale === prev.scale) return prev;
+        return { x: clamped.x, y: clamped.y, scale };
+      });
+    });
+    return () => {
+      try {
+        window.cancelAnimationFrame(raf);
+      } catch {}
+    };
+  }, [isCropMode]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const updateFromEl = (key: "mobile" | "desktop", el: HTMLDivElement | null) => {
+      if (!el) {
+        setCropViewport((prev) => {
+          const cur = prev[key];
+          if (cur.w === 0 && cur.h === 0) return prev;
+          return { ...prev, [key]: { w: 0, h: 0 } };
+        });
+        return;
+      }
+      const rect = el.getBoundingClientRect();
+      if (!rect || rect.width <= 0 || rect.height <= 0) {
+        setCropViewport((prev) => {
+          const cur = prev[key];
+          if (cur.w === 0 && cur.h === 0) return prev;
+          return { ...prev, [key]: { w: 0, h: 0 } };
+        });
+        return;
+      }
+      setCropViewport((prev) => {
+        const next = { ...prev, [key]: { w: rect.width, h: rect.height } };
+        const cur = prev[key];
+        if (Math.abs(cur.w - rect.width) < 0.5 && Math.abs(cur.h - rect.height) < 0.5) return prev;
+        return next;
+      });
+    };
+
+    const m = mobileCropViewportRef.current;
+    const d = desktopCropViewportRef.current;
+
+    updateFromEl("mobile", m);
+    updateFromEl("desktop", d);
+
+    const onResize = () => {
+      updateFromEl("mobile", mobileCropViewportRef.current);
+      updateFromEl("desktop", desktopCropViewportRef.current);
+    };
+
+    window.addEventListener("resize", onResize, { passive: true });
+
+    const ro =
+      typeof (window as any).ResizeObserver === "function"
+        ? new (window as any).ResizeObserver(() => onResize())
+        : null;
+    if (ro) {
+      if (m) ro.observe(m);
+      if (d) ro.observe(d);
+    }
+
+    return () => {
+      window.removeEventListener("resize", onResize);
+      try {
+        ro?.disconnect();
+      } catch {}
+    };
+  }, [image, imageRatio]);
+
+  const getCropCoverBaseSize = (vw: number, vh: number) => {
+    const w = Math.max(0, vw);
+    const h = Math.max(0, vh);
+    if (!w || !h || !Number.isFinite(imageRatio) || imageRatio <= 0) return { baseW: w, baseH: h };
+    const areaRatio = w / h;
+    if (imageRatio > areaRatio) {
+      return { baseW: h * imageRatio, baseH: h };
+    }
+    return { baseW: w, baseH: w / imageRatio };
+  };
+
+  const getCropBounds = (vw: number, vh: number, scale: number) => {
+    const { baseW, baseH } = getCropCoverBaseSize(vw, vh);
+    const s = Number.isFinite(scale) && scale > 0 ? scale : 1;
+    const scaledW = baseW * s;
+    const scaledH = baseH * s;
+    const maxX = Math.max(0, (scaledW - vw) / 2);
+    const maxY = Math.max(0, (scaledH - vh) / 2);
+    return { maxX, maxY, baseW, baseH };
+  };
+
+  const clampCropXY = (x: number, y: number, bounds: { maxX: number; maxY: number }) => {
+    const cx = Math.max(-bounds.maxX, Math.min(bounds.maxX, x));
+    const cy = Math.max(-bounds.maxY, Math.min(bounds.maxY, y));
+    return { x: cx, y: cy };
+  };
+
+  const clampCropScale = (scale: number) => {
+    const s = Number.isFinite(scale) && scale > 0 ? scale : 1;
+    return Math.max(1, Math.min(3, s));
+  };
+
+  const normalizeCropForViewport = (vw: number, vh: number, c: CropState) => {
+    const w = Math.max(0, vw);
+    const h = Math.max(0, vh);
+    const scale = clampCropScale(c.scale);
+    if (!w || !h) return { x: c.x, y: c.y, scale };
+    const bounds = getCropBounds(w, h, scale);
+    const clamped = clampCropXY(c.x, c.y, bounds);
+    return { x: clamped.x, y: clamped.y, scale };
+  };
+
+  const getCropCenterUVFor = (c: CropState, vw: number, vh: number) => {
+    const w = Math.max(0, vw);
+    const h = Math.max(0, vh);
+    if (!w || !h) return { u: 0.5, v: 0.5 };
+    const { baseW, baseH } = getCropCoverBaseSize(w, h);
+    const scale = clampCropScale(c.scale);
+    const scaledW = baseW * scale;
+    const scaledH = baseH * scale;
+    if (!scaledW || !scaledH) return { u: 0.5, v: 0.5 };
+    const uRaw = 0.5 - c.x / scaledW;
+    const vRaw = 0.5 - c.y / scaledH;
+    const u = Math.max(0, Math.min(1, uRaw));
+    const v = Math.max(0, Math.min(1, vRaw));
+    return { u, v };
+  };
+
+  const getCropCenterUV = (vw: number, vh: number) => {
+    return getCropCenterUVFor(crop, vw, vh);
+  };
+
+  const getCropMiniMapFor = (c: CropState, vw: number, vh: number, thumbSize: number) => {
+    const w = Math.max(0, vw);
+    const h = Math.max(0, vh);
+    const size = Math.max(0, thumbSize);
+    if (!w || !h || !size) return null;
+    if (!Number.isFinite(imageRatio) || imageRatio <= 0) return null;
+    const imgW = imageRatio >= 1 ? size : size * imageRatio;
+    const imgH = imageRatio >= 1 ? size / imageRatio : size;
+    const imgX = (size - imgW) / 2;
+    const imgY = (size - imgH) / 2;
+
+    const { baseW, baseH } = getCropCoverBaseSize(w, h);
+    const scale = clampCropScale(c.scale);
+    const scaledW = baseW * scale;
+    const scaledH = baseH * scale;
+    if (!scaledW || !scaledH) return null;
+
+    const viewWFrac = Math.max(0, Math.min(1, w / scaledW));
+    const viewHFrac = Math.max(0, Math.min(1, h / scaledH));
+
+    const leftPxRaw = scaledW / 2 - c.x - w / 2;
+    const topPxRaw = scaledH / 2 - c.y - h / 2;
+    const maxLeftPx = Math.max(0, scaledW - w);
+    const maxTopPx = Math.max(0, scaledH - h);
+    const leftPx = Math.max(0, Math.min(maxLeftPx, leftPxRaw));
+    const topPx = Math.max(0, Math.min(maxTopPx, topPxRaw));
+
+    const leftFrac = scaledW ? leftPx / scaledW : 0;
+    const topFrac = scaledH ? topPx / scaledH : 0;
+
+    const frameX = imgX + leftFrac * imgW;
+    const frameY = imgY + topFrac * imgH;
+    const frameW = viewWFrac * imgW;
+    const frameH = viewHFrac * imgH;
+
+    return { imgX, imgY, imgW, imgH, frameX, frameY, frameW, frameH };
+  };
+
+  useEffect(() => {
+    const desktop = getViewportOrLast("desktop");
+    const mobile = getViewportOrLast("mobile");
+    const vw = desktop.w && desktop.h ? desktop.w : mobile.w;
+    const vh = desktop.w && desktop.h ? desktop.h : mobile.h;
+    if (!vw || !vh) return;
+    setCrop((prev) => {
+      const s = Number.isFinite(prev.scale) && prev.scale > 0 ? prev.scale : 1;
+      const scale = Math.max(1, Math.min(3, s));
+      const bounds = getCropBounds(vw, vh, scale);
+      const clamped = clampCropXY(prev.x, prev.y, bounds);
+      if (clamped.x === prev.x && clamped.y === prev.y && scale === prev.scale) return prev;
+      return { x: clamped.x, y: clamped.y, scale };
+    });
+  }, [cropViewport.desktop.w, cropViewport.desktop.h, cropViewport.mobile.w, cropViewport.mobile.h]);
+
+  const handleCropWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (!isCropMode || isPickerMode) return;
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (!rect || rect.width <= 0 || rect.height <= 0) return;
+    const vw = e.currentTarget.clientWidth || rect.width;
+    const vh = e.currentTarget.clientHeight || rect.height;
+    const key: "mobile" | "desktop" =
+      e.currentTarget === mobileCropViewportRef.current ? "mobile" : "desktop";
+    lastCropViewportRef.current[key] = { w: vw, h: vh };
+    setCropViewport((prev) => {
+      const cur = prev[key];
+      if (Math.abs(cur.w - vw) < 0.5 && Math.abs(cur.h - vh) < 0.5) return prev;
+      return { ...prev, [key]: { w: vw, h: vh } };
+    });
+    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+    setCrop((prev) => {
+      const nextScale = Math.max(1, Math.min(3, prev.scale + delta));
+      const bounds = getCropBounds(vw, vh, nextScale);
+      const clamped = clampCropXY(prev.x, prev.y, bounds);
+      return { x: clamped.x, y: clamped.y, scale: nextScale };
+    });
+  };
+
+  const handleCropPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isCropMode || isPickerMode) return;
+    try { e.preventDefault(); } catch {}
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (!rect || rect.width <= 0 || rect.height <= 0) return;
+    const vw = e.currentTarget.clientWidth || rect.width;
+    const vh = e.currentTarget.clientHeight || rect.height;
+    const key: "mobile" | "desktop" =
+      e.currentTarget === mobileCropViewportRef.current ? "mobile" : "desktop";
+    cropActiveViewportKeyRef.current = key;
+    lastCropViewportRef.current[key] = { w: vw, h: vh };
+    setCropViewport((prev) => {
+      const cur = prev[key];
+      if (Math.abs(cur.w - vw) < 0.5 && Math.abs(cur.h - vh) < 0.5) return prev;
+      return { ...prev, [key]: { w: vw, h: vh } };
+    });
+    cropPointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+
+    const pointers = cropPointersRef.current;
+    if (pointers.size === 1) {
+      cropGestureRef.current = {
+        mode: "drag",
+        rect,
+        pointerId: e.pointerId,
+        startPointerX: e.clientX,
+        startPointerY: e.clientY,
+        startCropX: crop.x,
+        startCropY: crop.y,
+      };
+      setIsCropDragging(true);
+      return;
+    }
+
+    if (pointers.size >= 2) {
+      const pts = Array.from(pointers.values()).slice(0, 2);
+      const dx = pts[1].x - pts[0].x;
+      const dy = pts[1].y - pts[0].y;
+      const dist = Math.hypot(dx, dy) || 1;
+      const centerX = (pts[0].x + pts[1].x) / 2 - (rect.left + rect.width / 2);
+      const centerY = (pts[0].y + pts[1].y) / 2 - (rect.top + rect.height / 2);
+      cropGestureRef.current = {
+        mode: "pinch",
+        rect,
+        startScale: crop.scale,
+        startCropX: crop.x,
+        startCropY: crop.y,
+        startCenterX: centerX,
+        startCenterY: centerY,
+        startDistance: dist,
+      };
+      setIsCropDragging(true);
+    }
+  };
+
+  const handleCropPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isCropMode || isPickerMode) return;
+    const pointers = cropPointersRef.current;
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const g = cropGestureRef.current;
+    if (!g) return;
+    try { e.preventDefault(); } catch {}
+    const rectNow = e.currentTarget.getBoundingClientRect();
+    const vw = e.currentTarget.clientWidth || rectNow.width;
+    const vh = e.currentTarget.clientHeight || rectNow.height;
+    const key: "mobile" | "desktop" =
+      e.currentTarget === mobileCropViewportRef.current ? "mobile" : "desktop";
+    lastCropViewportRef.current[key] = { w: vw, h: vh };
+    setCropViewport((prev) => {
+      const cur = prev[key];
+      if (Math.abs(cur.w - vw) < 0.5 && Math.abs(cur.h - vh) < 0.5) return prev;
+      return { ...prev, [key]: { w: vw, h: vh } };
+    });
+
+    if (pointers.size === 1 && g.mode === "drag") {
+      if (e.pointerId !== g.pointerId) return;
+      const dx = e.clientX - g.startPointerX;
+      const dy = e.clientY - g.startPointerY;
+      setCrop((prev) => {
+        const bounds = getCropBounds(vw, vh, prev.scale);
+        const next = clampCropXY(g.startCropX + dx, g.startCropY + dy, bounds);
+        if (next.x === prev.x && next.y === prev.y) return prev;
+        return { x: next.x, y: next.y, scale: prev.scale };
+      });
+      return;
+    }
+
+    if (pointers.size >= 2 && g.mode === "pinch") {
+      const pts = Array.from(pointers.values()).slice(0, 2);
+      const dx = pts[1].x - pts[0].x;
+      const dy = pts[1].y - pts[0].y;
+      const dist = Math.hypot(dx, dy) || 1;
+      const ratio = dist / (g.startDistance || 1);
+      const nextScale = Math.max(1, Math.min(3, g.startScale * ratio));
+      const bounds = getCropBounds(vw, vh, nextScale);
+      const k = nextScale / (g.startScale || 1);
+      const centerX = (pts[0].x + pts[1].x) / 2 - (rectNow.left + rectNow.width / 2);
+      const centerY = (pts[0].y + pts[1].y) / 2 - (rectNow.top + rectNow.height / 2);
+      const nextX = k * g.startCropX + (centerX - k * g.startCenterX);
+      const nextY = k * g.startCropY + (centerY - k * g.startCenterY);
+      const clamped = clampCropXY(nextX, nextY, bounds);
+      setCrop({ x: clamped.x, y: clamped.y, scale: nextScale });
+    }
+  };
+
+  const handleCropPointerEnd = (e: React.PointerEvent<HTMLDivElement>) => {
+    const pointers = cropPointersRef.current;
+    pointers.delete(e.pointerId);
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+
+    if (pointers.size === 0) {
+      cropGestureRef.current = null;
+      cropActiveViewportKeyRef.current = null;
+      setIsCropDragging(false);
+      return;
+    }
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (!rect || rect.width <= 0 || rect.height <= 0) {
+      cropGestureRef.current = null;
+      cropActiveViewportKeyRef.current = null;
+      setIsCropDragging(false);
+      return;
+    }
+
+    if (pointers.size === 1) {
+      const [[pid, p]] = Array.from(pointers.entries());
+      cropGestureRef.current = {
+        mode: "drag",
+        rect,
+        pointerId: pid,
+        startPointerX: p.x,
+        startPointerY: p.y,
+        startCropX: crop.x,
+        startCropY: crop.y,
+      };
+      setIsCropDragging(true);
+      return;
+    }
+
+    if (pointers.size >= 2) {
+      const pts = Array.from(pointers.values()).slice(0, 2);
+      const dx = pts[1].x - pts[0].x;
+      const dy = pts[1].y - pts[0].y;
+      const dist = Math.hypot(dx, dy) || 1;
+      const centerX = (pts[0].x + pts[1].x) / 2 - (rect.left + rect.width / 2);
+      const centerY = (pts[0].y + pts[1].y) / 2 - (rect.top + rect.height / 2);
+      cropGestureRef.current = {
+        mode: "pinch",
+        rect,
+        startScale: crop.scale,
+        startCropX: crop.x,
+        startCropY: crop.y,
+        startCenterX: centerX,
+        startCenterY: centerY,
+        startDistance: dist,
+      };
+      setIsCropDragging(true);
+    }
+  };
+
   const getActiveImgEl = () => {
     const candidates = [desktopImgRef.current, mobileImgRef.current];
     for (const el of candidates) {
@@ -122,6 +597,16 @@ export default function ImageEditor() {
       if (rect.width > 0 && rect.height > 0) return el;
     }
     return desktopImgRef.current || mobileImgRef.current;
+  };
+
+  const getActivePreviewCardEl = () => {
+    const candidates = [desktopPreviewCardRef.current, mobilePreviewCardRef.current];
+    for (const el of candidates) {
+      if (!el) continue;
+      const rect = el.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) return el;
+    }
+    return desktopPreviewCardRef.current || mobilePreviewCardRef.current;
   };
 
   const scrollEditorIntoView = () => {
@@ -1122,6 +1607,14 @@ export default function ImageEditor() {
     } catch {}
     
     const isPortrait = imageRatio < 1;
+    const cropForExport = (() => {
+      const useMobile = isMobileNow();
+      const vw = useMobile ? cropViewport.mobile.w : cropViewport.desktop.w;
+      const vh = useMobile ? cropViewport.mobile.h : cropViewport.desktop.h;
+      const center = getCropCenterUV(vw, vh);
+      const s = Number.isFinite(crop.scale) && crop.scale > 0 ? crop.scale : 1;
+      return { u: center.u, v: center.v, scale: Math.max(1, Math.min(3, s)) };
+    })();
     
     // Canvas size
     const targetWidth = 1200;
@@ -1160,9 +1653,10 @@ export default function ImageEditor() {
 
     const previewScale = (() => {
       try {
-        const rect = img.getBoundingClientRect();
+        const el = getActivePreviewCardEl() || img;
+        const rect = el.getBoundingClientRect();
         if (!rect || rect.width <= 0) return 1;
-        const previewCardWidth = isPortrait ? rect.width / 0.68 : rect.width;
+        const previewCardWidth = rect.width;
         if (!previewCardWidth || previewCardWidth <= 0) return 1;
         return targetWidth / previewCardWidth;
       } catch {
@@ -1198,7 +1692,7 @@ export default function ImageEditor() {
     };
 
     if (isPortrait) {
-      const stripW = Math.round(targetWidth * 0.32);
+      const stripW = Math.round(targetWidth * 0.22);
       ctx.fillStyle = selectedColor;
       ctx.fillRect(0, 0, stripW, targetHeight);
       const imgX = stripW;
@@ -1206,19 +1700,19 @@ export default function ImageEditor() {
       const imgH = targetHeight;
 
       const areaRatio = imgW / imgH;
-      let dW: number, dH: number, dX: number, dY: number;
-
+      let baseW: number;
+      let baseH: number;
       if (imageRatio > areaRatio) {
-        dH = imgH;
-        dW = imgH * imageRatio;
-        dX = imgX + (imgW - dW) / 2;
-        dY = 0;
+        baseH = imgH;
+        baseW = imgH * imageRatio;
       } else {
-        dW = imgW;
-        dH = imgW / imageRatio;
-        dX = imgX;
-        dY = (imgH - dH) / 2;
+        baseW = imgW;
+        baseH = imgW / imageRatio;
       }
+      const dW = baseW * cropForExport.scale;
+      const dH = baseH * cropForExport.scale;
+      const dX = imgX + imgW / 2 - cropForExport.u * dW;
+      const dY = imgH / 2 - cropForExport.v * dH;
       ctx.save();
       ctx.beginPath();
       ctx.rect(imgX, 0, imgW, imgH);
@@ -1232,7 +1726,7 @@ export default function ImageEditor() {
       ctx.fillStyle = textColor;
       const selectedFont = FONT_OPTIONS[selectedFontIndex];
       const fontWeight = "400";
-      const basePreviewFontPx = 13;
+      const basePreviewFontPx = 13 * textScale;
       const fontPx = getExportFontPx(basePreviewFontPx);
       const spacingRatio = exportTextIsLong ? 0.12 : 0.18;
       ctx.font = `${selectedFont.style} ${fontWeight} ${fontPx}px "${selectedFont.value}", serif`;
@@ -1240,31 +1734,29 @@ export default function ImageEditor() {
       drawTextWithSpacing(displayStr, 0, 0, spacingPx);
       ctx.restore();
     } else {
-      // Landscape Layout: Image on Bottom (50%), Text on Top (50%)
-      const stripH = Math.round(targetHeight * 0.5);
+      // Landscape Layout: Image on Bottom (60%), Text on Top (40%)
+      const stripH = Math.round(targetHeight * 0.4);
       ctx.fillStyle = selectedColor;
       ctx.fillRect(0, 0, targetWidth, stripH);
 
-      const imgAreaHeight = targetHeight * 0.5;
-      const imgAreaTop = targetHeight * 0.5;
+      const imgAreaHeight = targetHeight - stripH;
+      const imgAreaTop = stripH;
       
-      // Draw image to fill the bottom 50% (object-cover)
+      // Draw image to fill the bottom area (object-cover)
       const areaRatio = targetWidth / imgAreaHeight;
-      let dW, dH, dX, dY;
-      
+      let baseW: number;
+      let baseH: number;
       if (imageRatio > areaRatio) {
-        // Image is wider than area
-        dH = imgAreaHeight;
-        dW = imgAreaHeight * imageRatio;
-        dX = (targetWidth - dW) / 2;
-        dY = imgAreaTop;
+        baseH = imgAreaHeight;
+        baseW = imgAreaHeight * imageRatio;
       } else {
-        // Image is taller than area
-        dW = targetWidth;
-        dH = targetWidth / imageRatio;
-        dX = 0;
-        dY = imgAreaTop + (imgAreaHeight - dH) / 2;
+        baseW = targetWidth;
+        baseH = targetWidth / imageRatio;
       }
+      const dW = baseW * cropForExport.scale;
+      const dH = baseH * cropForExport.scale;
+      const dX = targetWidth / 2 - cropForExport.u * dW;
+      const dY = imgAreaTop + imgAreaHeight / 2 - cropForExport.v * dH;
       ctx.save();
       ctx.beginPath();
       ctx.rect(0, imgAreaTop, targetWidth, imgAreaHeight);
@@ -1276,12 +1768,12 @@ export default function ImageEditor() {
       ctx.fillStyle = textColor;
       const selectedFont = FONT_OPTIONS[selectedFontIndex];
       const fontWeight = "400";
-      const basePreviewFontPx = 17;
+      const basePreviewFontPx = 17 * textScale;
       const fontPx = getExportFontPx(basePreviewFontPx);
       const spacingRatio = exportTextIsLong ? 0.1 : 0.16;
       ctx.font = `${selectedFont.style} ${fontWeight} ${fontPx}px "${selectedFont.value}", serif`;
       const spacingPx = fontPx * spacingRatio;
-      drawTextWithSpacing(displayStr, targetWidth / 2, targetHeight * 0.25, spacingPx);
+      drawTextWithSpacing(displayStr, targetWidth / 2, stripH / 2, spacingPx);
     }
 
     const previewDataUrl = canvas.toDataURL("image/png");
@@ -1350,6 +1842,41 @@ export default function ImageEditor() {
     if (previewText.loc && previewText.dat) return `${previewText.loc} · ${previewText.dat}`;
     return previewText.loc || previewText.dat || "";
   })();
+  const effectiveViewport = (key: "mobile" | "desktop") => {
+    if (
+      isCropMode &&
+      cropActiveViewportKeyRef.current === key
+    ) {
+      if (isCropDragging) {
+        const last = lastCropViewportRef.current[key];
+        if (last.w > 0 && last.h > 0) return last;
+      }
+      return getViewportOrLast(key);
+    }
+    return getViewportOrLast(key);
+  };
+  const mobileViewport = effectiveViewport("mobile");
+  const desktopViewport = effectiveViewport("desktop");
+  const mobileCropNorm = normalizeCropForViewport(mobileViewport.w, mobileViewport.h, crop);
+  const desktopCropNorm = normalizeCropForViewport(desktopViewport.w, desktopViewport.h, crop);
+  const mobileCropCover = getCropCoverBaseSize(mobileViewport.w, mobileViewport.h);
+  const desktopCropCover = getCropCoverBaseSize(desktopViewport.w, desktopViewport.h);
+  const coverOverscanPx = 2;
+  const mobileCoverW = mobileViewport.w ? Math.ceil(Math.max(mobileCropCover.baseW, mobileViewport.w) + coverOverscanPx) : Math.ceil(mobileCropCover.baseW);
+  const mobileCoverH = mobileViewport.h ? Math.ceil(Math.max(mobileCropCover.baseH, mobileViewport.h) + coverOverscanPx) : Math.ceil(mobileCropCover.baseH);
+  const desktopCoverW = desktopViewport.w ? Math.ceil(Math.max(desktopCropCover.baseW, desktopViewport.w) + coverOverscanPx) : Math.ceil(desktopCropCover.baseW);
+  const desktopCoverH = desktopViewport.h ? Math.ceil(Math.max(desktopCropCover.baseH, desktopViewport.h) + coverOverscanPx) : Math.ceil(desktopCropCover.baseH);
+  const mobileScaledCoverW = Math.ceil(mobileCropCover.baseW * mobileCropNorm.scale + coverOverscanPx);
+  const mobileScaledCoverH = Math.ceil(mobileCropCover.baseH * mobileCropNorm.scale + coverOverscanPx);
+  const desktopScaledCoverW = Math.ceil(desktopCropCover.baseW * desktopCropNorm.scale + coverOverscanPx);
+  const desktopScaledCoverH = Math.ceil(desktopCropCover.baseH * desktopCropNorm.scale + coverOverscanPx);
+  const mobileBgLeft = mobileViewport.w ? (mobileViewport.w - mobileScaledCoverW) / 2 + mobileCropNorm.x : 0;
+  const mobileBgTop = mobileViewport.h ? (mobileViewport.h - mobileScaledCoverH) / 2 + mobileCropNorm.y : 0;
+  const desktopBgLeft = desktopViewport.w ? (desktopViewport.w - desktopScaledCoverW) / 2 + desktopCropNorm.x : 0;
+  const desktopBgTop = desktopViewport.h ? (desktopViewport.h - desktopScaledCoverH) / 2 + desktopCropNorm.y : 0;
+  const miniMapSize = 64;
+  const mobileMiniMap = getCropMiniMapFor(mobileCropNorm, mobileViewport.w, mobileViewport.h, miniMapSize);
+  const desktopMiniMap = getCropMiniMapFor(desktopCropNorm, desktopViewport.w, desktopViewport.h, miniMapSize);
   const pickerPortal =
     typeof document !== "undefined" && isPickerMode
       ? createPortal(
@@ -1383,7 +1910,10 @@ export default function ImageEditor() {
       : null;
 
   return (
-    <div ref={editorRootRef} className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-8 items-start lg:items-stretch">
+    <div
+      ref={editorRootRef}
+      className="grid grid-cols-1 lg:grid-cols-12 lg:grid-rows-[1fr_auto] gap-3 lg:gap-x-8 lg:gap-y-6 items-start lg:items-stretch lg:min-h-[calc(100vh-24px)]"
+    >
       {pickerPortal}
       {!image && (
         <div className="lg:col-span-12 bg-[color:var(--cm-surface)] p-10 rounded-2xl shadow-sm border border-[color:var(--cm-border)] flex flex-col items-center justify-center gap-6 min-h-[260px]">
@@ -1415,16 +1945,22 @@ export default function ImageEditor() {
                     <div className="px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+104px)] flex flex-col items-center gap-2">
                       <div
                         ref={mobilePreviewRef}
-                        className="w-[92vw] max-w-[420px] sm:max-w-[430px] mx-auto flex justify-center bg-[color:var(--cm-surface)] p-2 sm:p-3 rounded-2xl shadow-sm border border-[color:var(--cm-border)] items-center"
+                        className="relative w-[92vw] max-w-[420px] sm:max-w-[430px] mx-auto flex justify-center bg-[color:var(--cm-surface)] p-2 sm:p-3 rounded-2xl shadow-sm border border-[color:var(--cm-border)] items-center"
+                        style={
+                          isCropMode
+                            ? { paddingRight: `${miniMapSize + 28}px`, paddingBottom: `${miniMapSize + 28}px` }
+                            : undefined
+                        }
                       >
                         <div
+                          ref={mobilePreviewCardRef}
                           className="relative h-[50svh] max-h-[520px] aspect-[3/4] shadow-2xl rounded-lg overflow-hidden bg-[color:var(--cm-surface)] flex flex-col sm:flex-row"
                           style={{ flexDirection: isPortrait ? "row" : "column" }}
                         >
                           <div
                               className={cn(
                                 "relative flex items-center justify-center shrink-0",
-                                isPortrait ? "w-[32%] h-full" : "w-full h-[50%]"
+                                isPortrait ? "w-[22%] h-full" : "w-full h-[40%]"
                               )}
                             style={{ backgroundColor: selectedColor }}
                           >
@@ -1432,16 +1968,15 @@ export default function ImageEditor() {
                               className={cn(
                                 "text-center px-4 transition-colors duration-200",
                                 isPortrait
-                                  ? cn(
-                                      "rotate-90 whitespace-nowrap",
-                                      previewTextIsLong ? "text-[13px] tracking-[0.12em]" : "text-[13px] tracking-[0.18em]"
-                                    )
-                                  : cn(previewTextIsLong ? "text-[17px] tracking-[0.1em]" : "text-[17px] tracking-[0.16em]")
+                                  ? "rotate-90 whitespace-nowrap"
+                                  : undefined
                               )}
                               style={{
                                 color: textColor,
                                 fontFamily: FONT_OPTIONS[selectedFontIndex].cssVar,
                                 fontStyle: FONT_OPTIONS[selectedFontIndex].style,
+                                fontSize: `${(isPortrait ? 13 : 17) * textScale}px`,
+                                letterSpacing: `${isPortrait ? (previewTextIsLong ? 0.12 : 0.18) : (previewTextIsLong ? 0.1 : 0.16)}em`,
                               }}
                             >
                               {previewTextLine}
@@ -1449,73 +1984,176 @@ export default function ImageEditor() {
                           </div>
 
                           <div
+                            ref={mobileCropViewportRef}
                             className={cn(
                               "relative overflow-hidden bg-zinc-50 flex items-center justify-center grow touch-pan-y",
                               isPickerMode && "touch-none",
-                              isPortrait ? "h-full" : "w-full h-[50%]"
+                              isCropMode && "touch-none",
+                              isCropMode && (isCropDragging ? "cursor-grabbing" : "cursor-grab"),
+                              isPortrait ? "h-full" : "w-full h-[60%]"
                             )}
+                            style={{ touchAction: isCropMode ? "none" : undefined }}
+                            onPointerDown={handleCropPointerDown}
+                            onPointerMove={handleCropPointerMove}
+                            onPointerUp={handleCropPointerEnd}
+                            onPointerCancel={handleCropPointerEnd}
+                            onWheel={handleCropWheel}
                           >
-                            <img
-                              ref={mobileImgRef}
-                              src={image || FALLBACK_PIXEL}
-                              alt="Uploaded"
-                              className={cn("w-full h-full object-cover", isPickerMode && "cursor-none touch-none select-none")}
-                              style={isPickerMode ? { touchAction: "none" } : undefined}
-                              onLoad={onImageLoad}
-                              onError={() => {
-                                setIsProcessing(false);
-                              }}
-                              onPointerDown={(e) => {
-                                if (!isPickerMode) return;
-                                if (e.pointerType === "touch") return;
-                                try {
-                                  e.preventDefault();
-                                } catch {}
-                                handlePickerStartAtClientPoint(e.clientX, e.clientY);
-                              }}
-                              onPointerMove={(e) => {
-                                if (!isPickerMode) return;
-                                if (e.pointerType === "touch") return;
-                                handlePickerMoveAtClientPoint(e.clientX, e.clientY);
-                              }}
-                              onPointerUp={(e) => {
-                                if (!isPickerMode) return;
-                                if (e.pointerType === "touch") return;
-                                try {
-                                  e.preventDefault();
-                                } catch {}
-                                handlePickerPickAtClientPoint(e.clientX, e.clientY);
-                              }}
-                              onPointerLeave={() => setMousePos(null)}
-                              onTouchStart={(e) => {
-                                if (!isPickerMode) return;
-                                const t = e.touches && e.touches[0] ? e.touches[0] : null;
-                                if (!t) return;
-                                try {
-                                  e.preventDefault();
-                                } catch {}
-                                handlePickerStartAtClientPoint(t.clientX, t.clientY);
-                              }}
-                              onTouchMove={(e) => {
-                                if (!isPickerMode) return;
-                                const t = e.touches && e.touches[0] ? e.touches[0] : null;
-                                if (!t) return;
-                                try {
-                                  e.preventDefault();
-                                } catch {}
-                                handlePickerMoveAtClientPoint(t.clientX, t.clientY);
-                              }}
-                              onTouchEnd={(e) => {
-                                if (!isPickerMode) return;
-                                try {
-                                  e.preventDefault();
-                                } catch {}
-                                const p = pickerPointRef.current || mousePos;
-                                if (p) handlePickerPickAtClientPoint(p.x, p.y);
+                            {isCropMode ? (
+                              <>
+                                <div className="absolute inset-0">
+                                  <div
+                                    className="absolute inset-0"
+                                    style={
+                                      mobileViewport.w && mobileViewport.h
+                                        ? {
+                                            backgroundImage: `url(${image || FALLBACK_PIXEL})`,
+                                            backgroundRepeat: "no-repeat",
+                                            backgroundSize: `${mobileScaledCoverW}px ${mobileScaledCoverH}px`,
+                                            backgroundPosition: `${mobileBgLeft}px ${mobileBgTop}px`,
+                                            transition: isCropDragging ? "none" : "background-position 0.12s ease-out, background-size 0.12s ease-out",
+                                          }
+                                        : {
+                                            backgroundImage: `url(${image || FALLBACK_PIXEL})`,
+                                            backgroundRepeat: "no-repeat",
+                                            backgroundSize: "cover",
+                                            backgroundPosition: "center",
+                                          }
+                                    }
+                                  />
+                                  <img
+                                    ref={mobileImgRef}
+                                    src={image || FALLBACK_PIXEL}
+                                    alt="Uploaded"
+                                    draggable={false}
+                                    className="absolute inset-0 w-full h-full opacity-0 pointer-events-none select-none"
+                                    onLoad={onImageLoad}
+                                    onError={() => {
+                                      setIsProcessing(false);
+                                    }}
+                                  />
+                                </div>
+                                <div className="pointer-events-none absolute inset-0 z-10">
+                                  <div className="absolute inset-0 border-2 border-white shadow-[0_14px_40px_rgba(0,0,0,0.35)]" />
+                                  <div className="absolute top-[33.33%] bottom-[33.33%] left-0 right-0 border-y border-white/40" />
+                                  <div className="absolute left-[33.33%] right-[33.33%] top-0 bottom-0 border-x border-white/40" />
+                                  <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-white" />
+                                  <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-white" />
+                                  <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-white" />
+                                  <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-white" />
+                                </div>
+                              </>
+                            ) : (
+                              <div className="absolute inset-0">
+                                <div
+                                  className="absolute inset-0"
+                                  style={
+                                    mobileViewport.w && mobileViewport.h
+                                      ? {
+                                          backgroundImage: `url(${image || FALLBACK_PIXEL})`,
+                                          backgroundRepeat: "no-repeat",
+                                          backgroundSize: `${mobileScaledCoverW}px ${mobileScaledCoverH}px`,
+                                          backgroundPosition: `${mobileBgLeft}px ${mobileBgTop}px`,
+                                          transition: "background-position 0.12s ease-out, background-size 0.12s ease-out",
+                                        }
+                                      : {
+                                          backgroundImage: `url(${image || FALLBACK_PIXEL})`,
+                                          backgroundRepeat: "no-repeat",
+                                          backgroundSize: "cover",
+                                          backgroundPosition: "center",
+                                        }
+                                  }
+                                />
+                                <img
+                                  ref={mobileImgRef}
+                                  src={image || FALLBACK_PIXEL}
+                                  alt="Uploaded"
+                                  draggable={false}
+                                  className={cn(
+                                    "absolute inset-0 w-full h-full opacity-0 select-none",
+                                    isPickerMode ? "cursor-none touch-none" : "pointer-events-none"
+                                  )}
+                                  style={isPickerMode ? { touchAction: "none" } : undefined}
+                                  onLoad={onImageLoad}
+                                  onError={() => {
+                                    setIsProcessing(false);
+                                  }}
+                                  onPointerDown={(e) => {
+                                    if (!isPickerMode) return;
+                                    if (isCropMode) return;
+                                    if (e.pointerType === "touch") return;
+                                    try {
+                                      e.preventDefault();
+                                    } catch {}
+                                    handlePickerStartAtClientPoint(e.clientX, e.clientY);
+                                  }}
+                                  onPointerMove={(e) => {
+                                    if (!isPickerMode) return;
+                                    if (isCropMode) return;
+                                    if (e.pointerType === "touch") return;
+                                    handlePickerMoveAtClientPoint(e.clientX, e.clientY);
+                                  }}
+                                  onPointerUp={(e) => {
+                                    if (!isPickerMode) return;
+                                    if (isCropMode) return;
+                                    if (e.pointerType === "touch") return;
+                                    try {
+                                      e.preventDefault();
+                                    } catch {}
+                                    handlePickerPickAtClientPoint(e.clientX, e.clientY);
+                                  }}
+                                  onPointerLeave={() => setMousePos(null)}
+                                  onTouchStart={(e) => {
+                                    if (!isPickerMode) return;
+                                    if (isCropMode) return;
+                                    const t = e.touches && e.touches[0] ? e.touches[0] : null;
+                                    if (!t) return;
+                                    try {
+                                      e.preventDefault();
+                                    } catch {}
+                                    handlePickerStartAtClientPoint(t.clientX, t.clientY);
+                                  }}
+                                  onTouchMove={(e) => {
+                                    if (!isPickerMode) return;
+                                    if (isCropMode) return;
+                                    const t = e.touches && e.touches[0] ? e.touches[0] : null;
+                                    if (!t) return;
+                                    try {
+                                      e.preventDefault();
+                                    } catch {}
+                                    handlePickerMoveAtClientPoint(t.clientX, t.clientY);
+                                  }}
+                                  onTouchEnd={(e) => {
+                                    if (!isPickerMode) return;
+                                    if (isCropMode) return;
+                                    try {
+                                      e.preventDefault();
+                                    } catch {}
+                                    const p = pickerPointRef.current || mousePos;
+                                    if (p) handlePickerPickAtClientPoint(p.x, p.y);
+                                  }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        {isCropMode && mobileMiniMap && (
+                          <div
+                            className="pointer-events-none absolute right-2 bottom-2 z-30 rounded-xl overflow-hidden border border-white/70 shadow-lg bg-black/15"
+                            style={{ width: `${miniMapSize}px`, height: `${miniMapSize}px` }}
+                          >
+                            <img src={image || FALLBACK_PIXEL} alt="" draggable={false} className="absolute inset-0 w-full h-full object-contain" />
+                            <div
+                              className="absolute rounded-md border-2 border-white/90 shadow-[0_10px_24px_rgba(0,0,0,0.35)]"
+                              style={{
+                                left: `${mobileMiniMap.frameX}px`,
+                                top: `${mobileMiniMap.frameY}px`,
+                                width: `${mobileMiniMap.frameW}px`,
+                                height: `${mobileMiniMap.frameH}px`,
                               }}
                             />
                           </div>
-                        </div>
+                        )}
                       </div>
 
                       <div
@@ -1524,31 +2162,57 @@ export default function ImageEditor() {
                       >
                         <div className="flex bg-[color:var(--cm-surface-2)] rounded-xl p-0.5 gap-1">
                           <button
-                            onClick={() => setMobileTab("presets")}
+                            onClick={() => {
+                              cropModeWantedRef.current = false;
+                              setIsCropMode(false);
+                              setMobileTab("presets");
+                            }}
                             className={cn(
                               "flex-1 py-2 rounded-lg text-sm font-medium transition-all",
                               mobileTab === "presets" ? "bg-[color:var(--cm-surface)] text-[color:var(--cm-ink)] shadow-sm" : "text-[color:var(--cm-ink-2)]"
                             )}
                           >
-                            智能配色
+                            配色
                           </button>
                           <button
-                            onClick={() => setMobileTab("colors")}
+                            onClick={() => {
+                              cropModeWantedRef.current = false;
+                              setIsCropMode(false);
+                              setMobileTab("colors");
+                            }}
                             className={cn(
                               "flex-1 py-2 rounded-lg text-sm font-medium transition-all",
                               mobileTab === "colors" ? "bg-[color:var(--cm-surface)] text-[color:var(--cm-ink)] shadow-sm" : "text-[color:var(--cm-ink-2)]"
                             )}
                           >
-                            自定义颜色
+                            颜色
                           </button>
                           <button
-                            onClick={() => setMobileTab("text")}
+                            onClick={() => {
+                              cropModeWantedRef.current = false;
+                              setIsCropMode(false);
+                              setMobileTab("text");
+                            }}
                             className={cn(
                               "flex-1 py-2 rounded-lg text-sm font-medium transition-all",
                               mobileTab === "text" ? "bg-[color:var(--cm-surface)] text-[color:var(--cm-ink)] shadow-sm" : "text-[color:var(--cm-ink-2)]"
                             )}
                           >
-                            文字样式
+                            文字
+                          </button>
+                          <button
+                            onClick={() => {
+                              setMobileTab("crop");
+                              setIsPickerMode(null);
+                              cropModeWantedRef.current = true;
+                              setIsCropMode(true);
+                            }}
+                            className={cn(
+                              "flex-1 py-2 rounded-lg text-sm font-medium transition-all",
+                              mobileTab === "crop" ? "bg-[color:var(--cm-surface)] text-[color:var(--cm-ink)] shadow-sm" : "text-[color:var(--cm-ink-2)]"
+                            )}
+                          >
+                            裁剪
                           </button>
                         </div>
 
@@ -1567,14 +2231,17 @@ export default function ImageEditor() {
                                         key={`${scheme.name}-${scheme.bg}-${scheme.text}`}
                                         onClick={() => setSelectedSchemeIndex(schemeIndex)}
                                         className={cn(
-                                          "flex flex-col items-center gap-1.5 p-2 rounded-xl border-2 transition-all w-[78px] shrink-0 outline-none focus:outline-none focus-visible:outline-none",
+                                          "flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all w-[78px] shrink-0 outline-none focus:outline-none focus-visible:outline-none",
                                           isSelected
-                                            ? "border-[color:var(--cm-brass)] bg-[color:color-mix(in_srgb,var(--cm-brass)_12%,transparent)]"
-                                            : "border-transparent bg-[color:var(--cm-surface)] hover:bg-[color:color-mix(in_srgb,var(--cm-brass)_8%,transparent)] active:scale-[0.99]"
+                                            ? "bg-[color:color-mix(in_srgb,var(--cm-brass)_12%,transparent)]"
+                                            : "bg-[color:var(--cm-surface)] hover:bg-[color:color-mix(in_srgb,var(--cm-brass)_8%,transparent)] active:scale-[0.99]"
                                         )}
                                       >
                                         <div
-                                          className="w-full aspect-square rounded-lg shadow-inner relative flex items-center justify-center overflow-hidden"
+                                          className={cn(
+                                            "w-full aspect-square rounded-lg shadow-inner relative flex items-center justify-center overflow-hidden border-2",
+                                            isSelected ? "border-[color:var(--cm-brass)]" : "border-transparent"
+                                          )}
                                           style={{ backgroundColor: scheme.bg }}
                                         >
                                           <span className="font-serif italic text-xl select-none" style={{ color: scheme.text }}>
@@ -1713,6 +2380,35 @@ export default function ImageEditor() {
                           ))}
                         </div>
 
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="text-sm font-medium text-[color:var(--cm-ink-2)]">字号</div>
+                            <div className="text-xs text-[color:var(--cm-ink-3)] tabular-nums">{Math.round(textScale * 100)}%</div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="range"
+                              min={0.7}
+                              max={1.8}
+                              step={0.05}
+                              value={textScale}
+                              style={{ ["--cm-range-pct" as any]: `${textScalePct}%` }}
+                              onChange={(e) => {
+                                const v = Number.parseFloat(e.target.value);
+                                if (Number.isFinite(v)) setTextScale(v);
+                              }}
+                              className="cm-slider w-full"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setTextScale(1)}
+                              className="h-9 px-3 rounded-xl text-sm font-medium border-2 border-[color:var(--cm-border-strong)] bg-[color:var(--cm-surface)] text-[color:var(--cm-ink-2)] hover:border-[color:color-mix(in_srgb,var(--cm-brass)_44%,var(--cm-border-strong))] whitespace-nowrap"
+                            >
+                              重置
+                            </button>
+                          </div>
+                        </div>
+
                         <div className="relative">
                           <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[color:var(--cm-ink-3)]" />
                           <input
@@ -1772,6 +2468,34 @@ export default function ImageEditor() {
                         </div>
                       </div>
                     )}
+
+                    {mobileTab === "crop" && (
+                      <div className="tab-panel space-y-3">
+                        <div className="px-4 py-3 bg-[color:color-mix(in_srgb,var(--cm-brass)_10%,transparent)] border border-[color:color-mix(in_srgb,var(--cm-brass)_40%,var(--cm-border))] rounded-xl">
+                          <p className="text-xs text-[color:var(--cm-ink-2)] text-center">在预览图片上拖动/双指缩放调整展示区域</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setCrop(DEFAULT_CROP)}
+                            className="w-full h-11 flex items-center justify-center rounded-xl text-sm font-medium border-2 border-[color:var(--cm-border-strong)] bg-[color:var(--cm-surface)] text-[color:var(--cm-ink-2)] hover:border-[color:color-mix(in_srgb,var(--cm-brass)_44%,var(--cm-border-strong))]"
+                          >
+                            重置
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              cropModeWantedRef.current = false;
+                              setIsCropMode(false);
+                              setMobileTab("presets");
+                            }}
+                            className="w-full h-11 flex items-center justify-center rounded-xl text-sm font-medium border-2 border-transparent bg-[color:var(--cm-btn)] text-[color:var(--cm-btn-text)] hover:bg-[color:var(--cm-btn-hover)] active:bg-[color:var(--cm-btn-active)]"
+                          >
+                            完成
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1802,15 +2526,24 @@ export default function ImageEditor() {
               </div>
             </div>
 
-          <div className="hidden lg:block lg:col-span-7 lg:sticky lg:top-3">
-                <div className="w-full">
-                  <div className="bg-[color:var(--cm-surface)] p-4 rounded-2xl shadow-sm border border-[color:var(--cm-border)]">
+          <div className="hidden lg:flex lg:col-span-7 lg:col-start-1 lg:row-span-2 lg:sticky lg:top-3">
+                <div className="w-full h-full">
+                  <div className="bg-[color:var(--cm-surface)] p-4 rounded-2xl shadow-sm border border-[color:var(--cm-border)] h-full flex flex-col">
                     <div
-                      className={cn(
-                        "relative w-full max-w-[520px] aspect-[3/4] shadow-2xl rounded-lg overflow-hidden bg-[color:var(--cm-surface)] mx-auto",
-                        isPortrait ? "grid grid-cols-[32%_1fr]" : "grid grid-rows-[1fr_1fr]"
-                      )}
+                      className="flex-1 flex items-center justify-center relative"
+                      style={
+                        isCropMode
+                          ? { paddingRight: `${miniMapSize + 28}px`, paddingBottom: `${miniMapSize + 28}px` }
+                          : undefined
+                      }
                     >
+                      <div
+                        className={cn(
+                          "relative w-full max-w-[572px] aspect-[3/4] shadow-2xl rounded-lg overflow-hidden bg-[color:var(--cm-surface)] mx-auto",
+                          isPortrait ? "grid grid-cols-[22%_1fr]" : "grid grid-rows-[40%_60%]"
+                        )}
+                        ref={desktopPreviewCardRef}
+                      >
                       <div
                         className={cn(
                           "relative flex items-center justify-center",
@@ -1822,16 +2555,15 @@ export default function ImageEditor() {
                           className={cn(
                             "text-center px-4 transition-colors duration-200",
                             isPortrait
-                              ? cn(
-                                  "rotate-90 whitespace-nowrap",
-                                  previewTextIsLong ? "text-[13px] tracking-[0.12em]" : "text-[13px] tracking-[0.18em]"
-                                )
-                              : cn(previewTextIsLong ? "text-[17px] tracking-[0.1em]" : "text-[17px] tracking-[0.16em]")
+                              ? "rotate-90 whitespace-nowrap"
+                              : undefined
                           )}
                           style={{
                             color: textColor,
                             fontFamily: FONT_OPTIONS[selectedFontIndex].cssVar,
                             fontStyle: FONT_OPTIONS[selectedFontIndex].style,
+                            fontSize: `${(isPortrait ? 13 : 17) * textScale}px`,
+                            letterSpacing: `${isPortrait ? (previewTextIsLong ? 0.12 : 0.18) : (previewTextIsLong ? 0.1 : 0.16)}em`,
                           }}
                         >
                           {previewTextLine}
@@ -1840,75 +2572,178 @@ export default function ImageEditor() {
                       <div
                         className={cn(
                           "relative overflow-hidden bg-[color:var(--cm-paper)] flex items-center justify-center",
+                          isCropMode && (isCropDragging ? "cursor-grabbing" : "cursor-grab"),
                           isPortrait ? "h-full" : "w-full"
                         )}
+                        ref={desktopCropViewportRef}
+                        style={{ touchAction: isCropMode ? "none" : undefined }}
+                        onPointerDown={handleCropPointerDown}
+                        onPointerMove={handleCropPointerMove}
+                        onPointerUp={handleCropPointerEnd}
+                        onPointerCancel={handleCropPointerEnd}
+                        onWheel={handleCropWheel}
                       >
-                        <img
-                          ref={desktopImgRef}
-                          src={image || FALLBACK_PIXEL}
-                          alt="Uploaded"
-                          className={cn("w-full h-full object-cover", isPickerMode && "cursor-none touch-none select-none")}
-                          style={isPickerMode ? { touchAction: "none" } : undefined}
-                          onLoad={onImageLoad}
-                          onError={(e) => {
-                            setIsProcessing(false);
-                          }}
-                          onPointerDown={(e) => {
-                            if (!isPickerMode) return;
-                            if (e.pointerType === "touch") return;
-                            try {
-                              e.preventDefault();
-                            } catch {}
-                            handlePickerStartAtClientPoint(e.clientX, e.clientY);
-                          }}
-                          onPointerMove={(e) => {
-                            if (!isPickerMode) return;
-                            if (e.pointerType === "touch") return;
-                            handlePickerMoveAtClientPoint(e.clientX, e.clientY);
-                          }}
-                          onPointerUp={(e) => {
-                            if (!isPickerMode) return;
-                            if (e.pointerType === "touch") return;
-                            try {
-                              e.preventDefault();
-                            } catch {}
-                            handlePickerPickAtClientPoint(e.clientX, e.clientY);
-                          }}
-                          onPointerLeave={() => setMousePos(null)}
-                          onTouchStart={(e) => {
-                            if (!isPickerMode) return;
-                            const t = e.touches && e.touches[0] ? e.touches[0] : null;
-                            if (!t) return;
-                            try {
-                              e.preventDefault();
-                            } catch {}
-                            handlePickerStartAtClientPoint(t.clientX, t.clientY);
-                          }}
-                          onTouchMove={(e) => {
-                            if (!isPickerMode) return;
-                            const t = e.touches && e.touches[0] ? e.touches[0] : null;
-                            if (!t) return;
-                            try {
-                              e.preventDefault();
-                            } catch {}
-                            handlePickerMoveAtClientPoint(t.clientX, t.clientY);
-                          }}
-                          onTouchEnd={(e) => {
-                            if (!isPickerMode) return;
-                            try {
-                              e.preventDefault();
-                            } catch {}
-                            const p = pickerPointRef.current || mousePos;
-                            if (p) handlePickerPickAtClientPoint(p.x, p.y);
-                          }}
-                        />
+                        {isCropMode ? (
+                        <>
+                          <div className="absolute inset-0">
+                            <div
+                              className="absolute inset-0"
+                              style={
+                                desktopViewport.w && desktopViewport.h
+                                  ? {
+                                      backgroundImage: `url(${image || FALLBACK_PIXEL})`,
+                                      backgroundRepeat: "no-repeat",
+                                      backgroundSize: `${desktopScaledCoverW}px ${desktopScaledCoverH}px`,
+                                      backgroundPosition: `${desktopBgLeft}px ${desktopBgTop}px`,
+                                      transition: isCropDragging ? "none" : "background-position 0.12s ease-out, background-size 0.12s ease-out",
+                                    }
+                                  : {
+                                      backgroundImage: `url(${image || FALLBACK_PIXEL})`,
+                                      backgroundRepeat: "no-repeat",
+                                      backgroundSize: "cover",
+                                      backgroundPosition: "center",
+                                    }
+                              }
+                            />
+                            <img
+                              ref={desktopImgRef}
+                              src={image || FALLBACK_PIXEL}
+                              alt="Uploaded"
+                              draggable={false}
+                              className="absolute inset-0 w-full h-full opacity-0 pointer-events-none select-none"
+                              onLoad={onImageLoad}
+                              onError={() => {
+                                setIsProcessing(false);
+                              }}
+                            />
+                          </div>
+                          <div className="pointer-events-none absolute inset-0 z-10">
+                            <div className="absolute inset-0 border-2 border-white shadow-[0_14px_40px_rgba(0,0,0,0.35)]" />
+                            <div className="absolute top-[33.33%] bottom-[33.33%] left-0 right-0 border-y border-white/40" />
+                            <div className="absolute left-[33.33%] right-[33.33%] top-0 bottom-0 border-x border-white/40" />
+                            <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-white" />
+                            <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-white" />
+                            <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-white" />
+                            <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-white" />
+                          </div>
+                        </>
+                        ) : (
+                          <div className="absolute inset-0">
+                            <div
+                              className="absolute inset-0"
+                              style={
+                                desktopViewport.w && desktopViewport.h
+                                  ? {
+                                      backgroundImage: `url(${image || FALLBACK_PIXEL})`,
+                                      backgroundRepeat: "no-repeat",
+                                      backgroundSize: `${desktopScaledCoverW}px ${desktopScaledCoverH}px`,
+                                      backgroundPosition: `${desktopBgLeft}px ${desktopBgTop}px`,
+                                      transition: "background-position 0.12s ease-out, background-size 0.12s ease-out",
+                                    }
+                                  : {
+                                      backgroundImage: `url(${image || FALLBACK_PIXEL})`,
+                                      backgroundRepeat: "no-repeat",
+                                      backgroundSize: "cover",
+                                      backgroundPosition: "center",
+                                    }
+                              }
+                            />
+                            <img
+                              ref={desktopImgRef}
+                              src={image || FALLBACK_PIXEL}
+                              alt="Uploaded"
+                              draggable={false}
+                              className={cn(
+                                "absolute inset-0 w-full h-full opacity-0 select-none",
+                                isPickerMode ? "cursor-none touch-none" : "pointer-events-none"
+                              )}
+                              style={isPickerMode ? { touchAction: "none" } : undefined}
+                              onLoad={onImageLoad}
+                              onError={() => {
+                                setIsProcessing(false);
+                              }}
+                              onPointerDown={(e) => {
+                                if (!isPickerMode) return;
+                                if (isCropMode) return;
+                                if (e.pointerType === "touch") return;
+                                try {
+                                  e.preventDefault();
+                                } catch {}
+                                handlePickerStartAtClientPoint(e.clientX, e.clientY);
+                              }}
+                              onPointerMove={(e) => {
+                                if (!isPickerMode) return;
+                                if (isCropMode) return;
+                                if (e.pointerType === "touch") return;
+                                handlePickerMoveAtClientPoint(e.clientX, e.clientY);
+                              }}
+                              onPointerUp={(e) => {
+                                if (!isPickerMode) return;
+                                if (isCropMode) return;
+                                if (e.pointerType === "touch") return;
+                                try {
+                                  e.preventDefault();
+                                } catch {}
+                                handlePickerPickAtClientPoint(e.clientX, e.clientY);
+                              }}
+                              onPointerLeave={() => setMousePos(null)}
+                              onTouchStart={(e) => {
+                                if (!isPickerMode) return;
+                                if (isCropMode) return;
+                                const t = e.touches && e.touches[0] ? e.touches[0] : null;
+                                if (!t) return;
+                                try {
+                                  e.preventDefault();
+                                } catch {}
+                                handlePickerStartAtClientPoint(t.clientX, t.clientY);
+                              }}
+                              onTouchMove={(e) => {
+                                if (!isPickerMode) return;
+                                if (isCropMode) return;
+                                const t = e.touches && e.touches[0] ? e.touches[0] : null;
+                                if (!t) return;
+                                try {
+                                  e.preventDefault();
+                                } catch {}
+                                handlePickerMoveAtClientPoint(t.clientX, t.clientY);
+                              }}
+                              onTouchEnd={(e) => {
+                                if (!isPickerMode) return;
+                                if (isCropMode) return;
+                                try {
+                                  e.preventDefault();
+                                } catch {}
+                                const p = pickerPointRef.current || mousePos;
+                                if (p) handlePickerPickAtClientPoint(p.x, p.y);
+                              }}
+                            />
+                          </div>
+                        )}
                       </div>
+                      </div>
+                      {isCropMode && desktopMiniMap && (
+                        <div
+                          className="pointer-events-none absolute right-2 bottom-2 z-30 rounded-xl overflow-hidden border border-white/70 shadow-lg bg-black/15"
+                          style={{ width: `${miniMapSize}px`, height: `${miniMapSize}px` }}
+                        >
+                          <img src={image || FALLBACK_PIXEL} alt="" draggable={false} className="absolute inset-0 w-full h-full object-contain" />
+                          <div
+                            className="absolute rounded-md border-2 border-white/90 shadow-[0_10px_24px_rgba(0,0,0,0.35)]"
+                            style={{
+                              left: `${desktopMiniMap.frameX}px`,
+                              top: `${desktopMiniMap.frameY}px`,
+                              width: `${desktopMiniMap.frameW}px`,
+                              height: `${desktopMiniMap.frameH}px`,
+                            }}
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
           </div>
 
-          <div className="hidden lg:flex lg:col-span-5 flex flex-col gap-6 lg:h-full pb-[calc(env(safe-area-inset-bottom)+96px)] lg:pb-0">
+          <div className="hidden lg:flex lg:col-span-5 lg:col-start-8 lg:row-start-1 flex flex-col gap-6 h-full">
             <div className="bg-[color:var(--cm-surface)] p-4 lg:p-4 rounded-2xl shadow-sm border border-[color:var(--cm-border)] flex flex-col gap-4 lg:gap-4 flex-1">
               <label className="cm-upload-btn">
                 <span className="inline-flex items-center justify-center gap-2">
@@ -1937,13 +2772,19 @@ export default function ImageEditor() {
                         key={`${scheme.name}-${scheme.bg}-${scheme.text}`}
                         onClick={() => setSelectedSchemeIndex(schemeIndex)}
                         className={cn(
-                          "flex flex-col items-center gap-2 p-2 rounded-xl border-2 transition-all w-[78px] shrink-0 lg:w-auto outline-none focus:outline-none focus-visible:outline-none",
+                          "flex flex-col items-center gap-2 p-2 rounded-xl transition-all w-[78px] shrink-0 lg:w-auto outline-none focus:outline-none focus-visible:outline-none",
                           isSelected
-                            ? "border-[color:var(--cm-brass)] bg-[color:color-mix(in_srgb,var(--cm-brass)_12%,transparent)]"
-                            : "border-transparent bg-[color:var(--cm-surface)] hover:bg-[color:color-mix(in_srgb,var(--cm-brass)_8%,transparent)] active:scale-[0.99]"
+                            ? "bg-[color:color-mix(in_srgb,var(--cm-brass)_12%,transparent)]"
+                            : "bg-[color:var(--cm-surface)] hover:bg-[color:color-mix(in_srgb,var(--cm-brass)_8%,transparent)] active:scale-[0.99]"
                         )}
                       >
-                        <div className="w-full aspect-square rounded-lg shadow-inner relative flex items-center justify-center overflow-hidden" style={{ backgroundColor: scheme.bg }}>
+                        <div
+                          className={cn(
+                            "w-full aspect-square rounded-lg shadow-inner relative flex items-center justify-center overflow-hidden border-2",
+                            isSelected ? "border-[color:var(--cm-brass)]" : "border-transparent"
+                          )}
+                          style={{ backgroundColor: scheme.bg }}
+                        >
                           <span className="font-serif italic text-lg select-none" style={{ color: scheme.text }}>Aa</span>
                         </div>
                         <span className="text-[10px] font-medium text-[color:var(--cm-ink-2)]">{scheme.name}</span>
@@ -2070,6 +2911,34 @@ export default function ImageEditor() {
                       </button>
                     ))}
                   </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs font-medium text-[color:var(--cm-ink-2)]">字号</div>
+                      <div className="text-[10px] text-[color:var(--cm-ink-3)] tabular-nums">{Math.round(textScale * 100)}%</div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min={0.7}
+                        max={1.8}
+                        step={0.05}
+                        value={textScale}
+                        style={{ ["--cm-range-pct" as any]: `${textScalePct}%` }}
+                        onChange={(e) => {
+                          const v = Number.parseFloat(e.target.value);
+                          if (Number.isFinite(v)) setTextScale(v);
+                        }}
+                        className="cm-slider w-full"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setTextScale(1)}
+                        className="h-8 px-3 rounded-lg text-xs font-medium border-2 border-[color:var(--cm-border-strong)] bg-[color:var(--cm-surface)] text-[color:var(--cm-ink-2)] hover:border-[color:color-mix(in_srgb,var(--cm-brass)_44%,var(--cm-border-strong))] whitespace-nowrap"
+                      >
+                        重置
+                      </button>
+                    </div>
+                  </div>
                   <div className="grid grid-cols-1 gap-3">
                     <div className="relative">
                       <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[color:var(--cm-ink-3)]" />
@@ -2111,12 +2980,51 @@ export default function ImageEditor() {
                     </div>
                   </div>
                 </div>
+
+                <div className="hidden lg:block p-3 bg-[color:var(--cm-paper)] rounded-xl border border-dashed border-[color:var(--cm-border)]">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="text-xs font-medium text-[color:var(--cm-ink-2)] whitespace-nowrap">✂️ 照片裁剪</div>
+                      <div className="text-[10px] text-[color:var(--cm-ink-3)] truncate">拖动/滚轮/双指调整</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsPickerMode(null);
+                          setIsCropMode((v) => {
+                            const next = !v;
+                            cropModeWantedRef.current = next;
+                            return next;
+                          });
+                        }}
+                        className={cn(
+                          "px-3 py-1.5 rounded-lg text-xs font-medium border-2 transition-all",
+                          isCropMode
+                            ? "border-transparent ring-2 ring-[color:var(--cm-brass)] bg-[color:color-mix(in_srgb,var(--cm-brass)_12%,transparent)] text-[color:var(--cm-ink)]"
+                            : "border-[color:var(--cm-border-strong)] bg-[color:var(--cm-surface)] text-[color:var(--cm-ink-2)] hover:border-[color:color-mix(in_srgb,var(--cm-brass)_44%,var(--cm-border-strong))]"
+                        )}
+                      >
+                        {isCropMode ? "退出裁剪" : "进入裁剪"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCrop(DEFAULT_CROP)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium border-2 border-[color:var(--cm-border-strong)] bg-[color:var(--cm-surface)] text-[color:var(--cm-ink-2)] hover:border-[color:color-mix(in_srgb,var(--cm-brass)_44%,var(--cm-border-strong))]"
+                      >
+                        重置
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
+          </div>
 
+          <div className="hidden lg:flex lg:col-span-5 lg:col-start-8 lg:row-start-2">
             <button
               onClick={downloadImage}
-              className="hidden lg:flex w-full items-center justify-center gap-2 bg-[color:var(--cm-btn)] hover:bg-[color:var(--cm-btn-hover)] active:bg-[color:var(--cm-btn-active)] text-[color:var(--cm-btn-text)] py-3 rounded-xl transition-colors text-sm font-medium border border-[color:color-mix(in_srgb,var(--cm-brass)_44%,var(--cm-border))] shadow-sm"
+              className="w-full items-center justify-center gap-2 bg-[color:var(--cm-btn)] hover:bg-[color:var(--cm-btn-hover)] active:bg-[color:var(--cm-btn-active)] text-[color:var(--cm-btn-text)] py-3 rounded-xl transition-colors text-sm font-medium border border-[color:color-mix(in_srgb,var(--cm-brass)_44%,var(--cm-border))] shadow-sm flex"
             >
               <Download className="w-4 h-4" />
               导出成品
