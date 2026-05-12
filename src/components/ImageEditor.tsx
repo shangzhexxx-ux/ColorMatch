@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Upload, Download, RefreshCw, MapPin, Calendar, Pipette, Palette, Type as TypeIcon } from "lucide-react";
+import { Upload, Download, RefreshCw, MapPin, Calendar, Pipette, Palette, Type as TypeIcon, ArrowLeftRight, ArrowUpDown, Scissors, Sliders, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ColorScheme {
@@ -15,6 +15,7 @@ interface FontOption {
   name: string;
   value: string;
   style: string;
+  weight: string;
   cssVar: string;
 }
 
@@ -24,11 +25,11 @@ type CropState = { x: number; y: number; scale: number };
 const DEFAULT_CROP: CropState = { x: 0, y: 0, scale: 1 };
 
 const FONT_OPTIONS: FontOption[] = [
-  { name: '衬线', value: 'Playfair Display', style: 'italic', cssVar: 'var(--font-playfair)' },
-  { name: '现代', value: 'Montserrat', style: 'normal', cssVar: 'var(--font-montserrat)' },
-  { name: '优雅', value: 'Cormorant Garamond', style: 'italic', cssVar: 'var(--font-cormorant)' },
-  { name: '简约', value: 'Lora', style: 'italic', cssVar: 'var(--font-lora)' },
-  { name: '文艺', value: 'EB Garamond', style: 'italic', cssVar: 'var(--font-eb-garamond)' },
+  { name: '衬线', value: 'Playfair Display', style: 'italic', weight: '400', cssVar: 'var(--font-playfair)' },
+  { name: '现代', value: 'Montserrat', style: 'normal', weight: '400', cssVar: 'var(--font-montserrat)' },
+  { name: '优雅', value: 'Cormorant Garamond', style: 'italic', weight: '400', cssVar: 'var(--font-cormorant)' },
+  { name: '简约', value: 'Lora', style: 'italic', weight: '400', cssVar: 'var(--font-lora)' },
+  { name: '文艺', value: 'Merriweather', style: 'normal', weight: '700', cssVar: 'var(--font-merriweather)' },
 ];
 
 const FALLBACK_PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
@@ -55,6 +56,30 @@ export default function ImageEditor() {
   const [isCropMode, setIsCropMode] = useState<boolean>(false);
   const [crop, setCrop] = useState<CropState>(DEFAULT_CROP);
   const [isCropDragging, setIsCropDragging] = useState<boolean>(false);
+  const [isRangeMode, setIsRangeMode] = useState<boolean>(false);
+  const [isStripDragging, setIsStripDragging] = useState<boolean>(false);
+
+  const portraitStripMin = 0.22;
+  const landscapeStripMin = 0.25;
+  const landscapeStripDefault = 0.4;
+  const stripMax = 0.5;
+  const [portraitStripRatio, setPortraitStripRatio] = useState<number>(portraitStripMin);
+  const [landscapeStripRatio, setLandscapeStripRatio] = useState<number>(landscapeStripDefault);
+
+  const clampStripRatio = (v: number, min: number) => {
+    const n = Number.isFinite(v) ? v : min;
+    return Math.max(min, Math.min(stripMax, n));
+  };
+
+  const stripRangePct = (v: number, min: number) => {
+    const t = clampStripRatio(v, min);
+    const pct = ((t - min) / (stripMax - min)) * 100;
+    return Math.max(0, Math.min(100, pct));
+  };
+
+  const portraitStripPct = (clampStripRatio(portraitStripRatio, portraitStripMin) * 100).toFixed(2);
+  const landscapeStripPct = (clampStripRatio(landscapeStripRatio, landscapeStripMin) * 100).toFixed(2);
+  const isPortrait = imageRatio < 1;
 
   const textScalePct = (() => {
     const min = 0.7;
@@ -63,8 +88,14 @@ export default function ImageEditor() {
     const pct = ((v - min) / (max - min)) * 100;
     return Math.max(0, Math.min(100, pct));
   })();
-  
+
+  const skipCustomSchemeSyncRef = useRef(false);
+
   useEffect(() => {
+    if (skipCustomSchemeSyncRef.current) {
+      skipCustomSchemeSyncRef.current = false;
+      return;
+    }
     if (!customBgColor || !/^#[0-9A-Fa-f]{6}$/.test(customBgColor)) return;
     
     const r = parseInt(customBgColor.slice(1, 3), 16);
@@ -89,11 +120,11 @@ export default function ImageEditor() {
       newSchemes[existingCustomIndex] = customScheme;
       setSchemes(newSchemes);
       setSelectedSchemeIndex(existingCustomIndex);
-    } else if (schemes.length >= 5) {
-      const newSchemes = schemes.slice(0, 5);
+    } else if (schemes.length >= 6) {
+      const newSchemes = schemes.slice(0, 6);
       newSchemes.push(customScheme);
       setSchemes(newSchemes);
-      setSelectedSchemeIndex(5);
+      setSelectedSchemeIndex(6);
     } else {
       setSchemes([...schemes, customScheme]);
       setSelectedSchemeIndex(schemes.length);
@@ -104,6 +135,8 @@ export default function ImageEditor() {
   const desktopImgRef = useRef<HTMLImageElement>(null);
   const mobilePreviewCardRef = useRef<HTMLDivElement>(null);
   const desktopPreviewCardRef = useRef<HTMLDivElement>(null);
+  const mobileStripRef = useRef<HTMLDivElement>(null);
+  const desktopStripRef = useRef<HTMLDivElement>(null);
   const mobileCropViewportRef = useRef<HTMLDivElement>(null);
   const desktopCropViewportRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -117,6 +150,37 @@ export default function ImageEditor() {
   const dateRequestIdRef = useRef(0);
   const dateValueRef = useRef<string>("");
   const pickerPointRef = useRef<{ x: number; y: number } | null>(null);
+
+  const mobilePreviewFontPx = (() => {
+    try {
+      const card = mobilePreviewCardRef.current;
+      if (!card) return (isPortrait ? 13 : 17) * textScale;
+      const rect = card.getBoundingClientRect();
+      const w = rect.width;
+      const h = rect.height;
+      if (w <= 0 || h <= 0) return (isPortrait ? 13 : 17) * textScale;
+      const stripPx = isPortrait
+        ? Math.round(w * clampStripRatio(portraitStripRatio, portraitStripMin))
+        : Math.round(h * clampStripRatio(landscapeStripRatio, landscapeStripMin));
+      return Math.round(stripPx * 0.188) * textScale;
+    } catch { return (isPortrait ? 13 : 17) * textScale; }
+  })();
+
+  const desktopPreviewFontPx = (() => {
+    try {
+      const card = desktopPreviewCardRef.current;
+      if (!card) return (isPortrait ? 13 : 17) * textScale;
+      const rect = card.getBoundingClientRect();
+      const w = rect.width;
+      const h = rect.height;
+      if (w <= 0 || h <= 0) return (isPortrait ? 13 : 17) * textScale;
+      const stripPx = isPortrait
+        ? Math.round(w * clampStripRatio(portraitStripRatio, portraitStripMin))
+        : Math.round(h * clampStripRatio(landscapeStripRatio, landscapeStripMin));
+      return Math.round(stripPx * 0.188) * textScale;
+    } catch { return (isPortrait ? 13 : 17) * textScale; }
+  })();
+
   const cropPointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
   const cropGestureRef = useRef<
     | null
@@ -140,6 +204,17 @@ export default function ImageEditor() {
         startDistance: number;
       }
   >(null);
+
+  const handleSelectScheme = (schemeIndex: number) => {
+    const scheme = schemes[schemeIndex];
+    if (!scheme) return;
+    if (isCropMode || isRangeMode) return;
+    setIsPickerMode(null);
+    setSelectedSchemeIndex(schemeIndex);
+    skipCustomSchemeSyncRef.current = true;
+    setCustomBgColor(scheme.bg);
+    setCustomTextColor(scheme.text);
+  };
   const cropActiveViewportKeyRef = useRef<"mobile" | "desktop" | null>(null);
   const mobileScrollRef = useRef<HTMLDivElement>(null);
   const mobileControlsRef = useRef<HTMLDivElement>(null);
@@ -190,6 +265,97 @@ export default function ImageEditor() {
     if (isPickerMode) return;
     if (!isCropMode) setIsCropMode(true);
   }, [mobileTab, isPickerMode, isCropMode]);
+
+  useEffect(() => {
+    if (isCropMode || isPickerMode) {
+      if (isRangeMode) setIsRangeMode(false);
+    }
+  }, [isCropMode, isPickerMode, isRangeMode]);
+
+  useEffect(() => {
+    if (isRangeMode) return;
+    if (stripGestureRef.current) stripGestureRef.current = null;
+    if (isStripDragging) setIsStripDragging(false);
+  }, [isRangeMode, isStripDragging]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const isDesktopBp =
+      typeof window.matchMedia === "function"
+        ? window.matchMedia("(min-width: 1024px)").matches
+        : false;
+    if (isDesktopBp) return;
+    if (mobileTab !== "colors" && isRangeMode) setIsRangeMode(false);
+  }, [mobileTab, isRangeMode]);
+
+  const [mobileStripEdgePx, setMobileStripEdgePx] = useState<number | null>(null);
+  const [desktopStripEdgePx, setDesktopStripEdgePx] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!isRangeMode) {
+      setMobileStripEdgePx(null);
+      setDesktopStripEdgePx(null);
+      return;
+    }
+
+    const update = () => {
+      const dpr = typeof window !== "undefined" && Number.isFinite(window.devicePixelRatio) && window.devicePixelRatio > 0 ? window.devicePixelRatio : 1;
+      const snap = (v: number) => Math.round(v * dpr) / dpr;
+
+      const mCard = mobilePreviewCardRef.current;
+      const mStrip = mobileStripRef.current;
+      if (mCard && mStrip) {
+        const cardRect = mCard.getBoundingClientRect();
+        const stripRect = mStrip.getBoundingClientRect();
+        if (cardRect.width > 0 && cardRect.height > 0) {
+          const edge = isPortrait ? stripRect.right - cardRect.left : stripRect.bottom - cardRect.top;
+          if (Number.isFinite(edge)) setMobileStripEdgePx(snap(edge));
+        }
+      }
+
+      const dCard = desktopPreviewCardRef.current;
+      const dStrip = desktopStripRef.current;
+      if (dCard && dStrip) {
+        const cardRect = dCard.getBoundingClientRect();
+        const stripRect = dStrip.getBoundingClientRect();
+        if (cardRect.width > 0 && cardRect.height > 0) {
+          const edge = isPortrait ? stripRect.right - cardRect.left : stripRect.bottom - cardRect.top;
+          if (Number.isFinite(edge)) setDesktopStripEdgePx(snap(edge));
+        }
+      }
+    };
+
+    const raf1 = window.requestAnimationFrame(() => {
+      update();
+      window.requestAnimationFrame(update);
+    });
+    window.addEventListener("resize", update, { passive: true });
+
+    const ro =
+      typeof (window as any).ResizeObserver === "function"
+        ? new (window as any).ResizeObserver(() => update())
+        : null;
+    if (ro) {
+      const mCard = mobilePreviewCardRef.current;
+      const mStrip = mobileStripRef.current;
+      const dCard = desktopPreviewCardRef.current;
+      const dStrip = desktopStripRef.current;
+      if (mCard) ro.observe(mCard);
+      if (mStrip) ro.observe(mStrip);
+      if (dCard) ro.observe(dCard);
+      if (dStrip) ro.observe(dStrip);
+    }
+    return () => {
+      try {
+        window.cancelAnimationFrame(raf1);
+      } catch {}
+      window.removeEventListener("resize", update);
+      try {
+        ro?.disconnect();
+      } catch {}
+    };
+  }, [isRangeMode, isPortrait, portraitStripPct, landscapeStripPct]);
 
   useEffect(() => {
     if (!isCropMode) return;
@@ -589,6 +755,89 @@ export default function ImageEditor() {
     }
   };
 
+  const stripGestureRef = useRef<
+    | null
+    | {
+        pointerId: number;
+        mode: "portrait" | "landscape";
+        startClientX: number;
+        startClientY: number;
+        startRatio: number;
+        rectLeft: number;
+        rectTop: number;
+        rectW: number;
+        rectH: number;
+      }
+  >(null);
+
+  const handleStripPointerDown = (mode: "portrait" | "landscape") => (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isRangeMode) return;
+    if (isCropMode || isPickerMode) return;
+    const rect = getActivePreviewCardEl()?.getBoundingClientRect();
+    if (!rect || rect.width <= 0 || rect.height <= 0) return;
+    try {
+      e.preventDefault();
+    } catch {}
+    try {
+      e.stopPropagation();
+    } catch {}
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {}
+    setIsStripDragging(true);
+    stripGestureRef.current = {
+      pointerId: e.pointerId,
+      mode,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      startRatio: mode === "portrait" ? clampStripRatio(portraitStripRatio, portraitStripMin) : clampStripRatio(landscapeStripRatio, landscapeStripMin),
+      rectLeft: rect.left,
+      rectTop: rect.top,
+      rectW: rect.width,
+      rectH: rect.height,
+    };
+  };
+
+  const handleStripPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const g = stripGestureRef.current;
+    if (!g || e.pointerId !== g.pointerId) return;
+    try {
+      e.preventDefault();
+    } catch {}
+    try {
+      e.stopPropagation();
+    } catch {}
+
+    if (g.mode === "portrait") {
+      const dx = e.clientX - g.startClientX;
+      if (Math.abs(dx) < 0.5) return;
+      const raw = g.startRatio + dx / g.rectW;
+      setPortraitStripRatio(clampStripRatio(raw, portraitStripMin));
+      return;
+    }
+
+    const dy = e.clientY - g.startClientY;
+    if (Math.abs(dy) < 0.5) return;
+    const raw = g.startRatio + dy / g.rectH;
+    setLandscapeStripRatio(clampStripRatio(raw, landscapeStripMin));
+  };
+
+  const handleStripPointerEnd = (e: React.PointerEvent<HTMLDivElement>) => {
+    const g = stripGestureRef.current;
+    if (!g || e.pointerId !== g.pointerId) return;
+    try {
+      e.preventDefault();
+    } catch {}
+    try {
+      e.stopPropagation();
+    } catch {}
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {}
+    stripGestureRef.current = null;
+    setIsStripDragging(false);
+  };
+
   const getActiveImgEl = () => {
     const candidates = [desktopImgRef.current, mobileImgRef.current];
     for (const el of candidates) {
@@ -597,6 +846,16 @@ export default function ImageEditor() {
       if (rect.width > 0 && rect.height > 0) return el;
     }
     return desktopImgRef.current || mobileImgRef.current;
+  };
+
+  const getActiveCropViewportEl = () => {
+    const candidates = [desktopCropViewportRef.current, mobileCropViewportRef.current];
+    for (const el of candidates) {
+      if (!el) continue;
+      const rect = el.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) return el;
+    }
+    return desktopCropViewportRef.current || mobileCropViewportRef.current;
   };
 
   const getActivePreviewCardEl = () => {
@@ -853,6 +1112,102 @@ export default function ImageEditor() {
           return;
         } catch {}
       };
+
+      const isLivePhoto = (f: File) => {
+        const t = f.type.toLowerCase();
+        const n = f.name.toLowerCase();
+        return (
+          t.includes("heic") ||
+          t.includes("heif") ||
+          t.includes("avci") ||
+          t.includes("avcs") ||
+          n.endsWith(".heic") ||
+          n.endsWith(".heif") ||
+          n.endsWith(".avci") ||
+          n.endsWith(".avcs") ||
+          t.startsWith("image/heic") ||
+          t.startsWith("image/heif") ||
+          t.startsWith("image/avci") ||
+          t.startsWith("image/avcs")
+        );
+      };
+
+      const convertHeicToJpeg = async (f: File) => {
+        try {
+          const { default: heic2any } = await import("heic2any");
+          const blob = await heic2any({
+            blob: f,
+            toType: "image/jpeg",
+            quality: 0.92,
+          }) as Blob;
+          if (!blob || blob.size === 0) return null;
+          return blob;
+        } catch {
+          return null;
+        }
+      };
+
+      const extractVideoFrame = (f: File): Promise<string | null> =>
+        new Promise((resolve) => {
+          const video = document.createElement("video");
+          video.preload = "metadata";
+          video.muted = true;
+          video.playsInline = true;
+          video.src = URL.createObjectURL(f);
+          video.onloadeddata = () => {
+            video.currentTime = 0.1;
+          };
+          video.onseeked = () => {
+            try {
+              const canvas = document.createElement("canvas");
+              canvas.width = video.videoWidth;
+              canvas.height = video.videoHeight;
+              const ctx = canvas.getContext("2d");
+              if (!ctx) {
+                URL.revokeObjectURL(video.src);
+                resolve(null);
+                return;
+              }
+              ctx.drawImage(video, 0, 0);
+              URL.revokeObjectURL(video.src);
+              resolve(canvas.toDataURL("image/jpeg", 0.92));
+            } catch {
+              URL.revokeObjectURL(video.src);
+              resolve(null);
+            }
+          };
+          video.onerror = () => {
+            URL.revokeObjectURL(video.src);
+            resolve(null);
+          };
+          video.load();
+        });
+
+      void (async () => {
+        const mime = file.type.toLowerCase();
+        const isVideo = mime.startsWith("video/") || mime.includes("quicktime") || mime.includes("mp4");
+
+        if (isLivePhoto(file)) {
+          const converted = await convertHeicToJpeg(file);
+          if (converted) {
+            if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+            const objectUrl = URL.createObjectURL(converted);
+            objectUrlRef.current = objectUrl;
+            setImage(objectUrl);
+            return;
+          }
+        }
+
+        if (isVideo) {
+          const frameDataUrl = await extractVideoFrame(file);
+          if (frameDataUrl) {
+            if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+            setImage(frameDataUrl);
+            return;
+          }
+        }
+      })();
+
       setPreviewFromFile();
 
       requestAnimationFrame(() => {
@@ -1104,33 +1459,44 @@ export default function ImageEditor() {
 
   const sampleHexAtClientPoint = (clientX: number, clientY: number) => {
     const img = getActiveImgEl();
-    if (!img || !colorPickerCanvasRef.current) return;
-    
-    const canvas = colorPickerCanvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    const card = getActivePreviewCardEl();
+    if (!img || !card) return;
 
-    const rect = img.getBoundingClientRect();
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
-    
-    const scaleX = img.naturalWidth / rect.width;
-    const scaleY = img.naturalHeight / rect.height;
-    
-    const natX = Math.floor(x * scaleX);
-    const natY = Math.floor(y * scaleY);
+    const cardRect = card.getBoundingClientRect();
+    const cx = clientX - cardRect.left;
+    const cy = clientY - cardRect.top;
+    if (cx < 0 || cy < 0 || cx >= cardRect.width || cy >= cardRect.height) return;
 
-    if (natX < 0 || natY < 0 || natX >= img.naturalWidth || natY >= img.naturalHeight) return;
-    
-    if (canvas.width !== img.naturalWidth || canvas.height !== img.naturalHeight) {
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
-      ctx.drawImage(img, 0, 0);
+    const natW = img.naturalWidth;
+    const natH = img.naturalHeight;
+    const cw = cardRect.width;
+    const ch = cardRect.height;
+
+    const coverCanvas = document.createElement('canvas');
+    coverCanvas.width = cw;
+    coverCanvas.height = ch;
+    const coverCtx = coverCanvas.getContext('2d');
+    if (!coverCtx) return;
+
+    const natAspect = natW / natH;
+    const cardAspect = cw / ch;
+    let dw: number, dh: number, dx: number, dy: number;
+    if (natAspect >= cardAspect) {
+      dw = cw;
+      dh = cw / natAspect;
+      dx = 0;
+      dy = (ch - dh) / 2;
+    } else {
+      dh = ch;
+      dw = ch * natAspect;
+      dx = (cw - dw) / 2;
+      dy = 0;
     }
-    
-    const pixel = ctx.getImageData(natX, natY, 1, 1).data;
-    const hexColor = rgbToHex(pixel[0], pixel[1], pixel[2]);
-    return hexColor;
+
+    coverCtx.drawImage(img, dx, dy, dw, dh);
+
+    const pixel = coverCtx.getImageData(Math.round(cx), Math.round(cy), 1, 1).data;
+    return rgbToHex(pixel[0], pixel[1], pixel[2]);
   };
 
   const handlePickerMoveAtClientPoint = (clientX: number, clientY: number) => {
@@ -1466,7 +1832,34 @@ export default function ImageEditor() {
       const scheme1Rgb = scheme1.repRgb;
       registerBg(scheme1Rgb);
       newSchemes.push(createScheme(scheme1Rgb, "清爽氛围", 'classic'));
-      
+
+      const spotlightCandidate = [...allBins]
+        .filter(b => b.peakSat >= 0.50 && b.peakVal >= 0.30)
+        .sort((a, b) => {
+          const aScore = a.peakSat * a.peakVal * 100;
+          const bScore = b.peakSat * b.peakVal * 100;
+          return bScore - aScore;
+        })
+        .find(b => {
+          const [h] = rgbToHsv(b.peakRgb[0], b.peakRgb[1], b.peakRgb[2]);
+          const distFromUsed = usedBgRgbs.map(u => {
+            const dr = u[0] - b.peakRgb[0];
+            const dg = u[1] - b.peakRgb[1];
+            const db = u[2] - b.peakRgb[2];
+            return Math.sqrt(dr*dr + dg*dg + db*db);
+          });
+          return isHueDistinct(h, usedBgHues, 25) && distFromUsed.every(d => d > 40);
+        });
+
+      const spotlightRaw = pickFromBins(
+        spotlightCandidate ? [spotlightCandidate, ...sortedByAtmosphere] : sortedByAtmosphere,
+        (b) => b.peakRgb,
+        25,
+        40
+      );
+      registerBg(spotlightRaw);
+      newSchemes.push(createScheme(spotlightRaw, "点睛之色", 'tinted'));
+
       const accentCandidates = [...allBins]
         .filter(b => {
           const h = rgbToHsv(b.peakRgb[0], b.peakRgb[1], b.peakRgb[2])[0];
@@ -1478,15 +1871,15 @@ export default function ImageEditor() {
         })
         .sort((a, b) => accentScore(b, usedBgHues) - accentScore(a, usedBgHues));
 
-      const accentRaw = pickFromBins(
+      const brightRaw = pickFromBins(
         accentCandidates.length ? accentCandidates : sortedByAtmosphere,
         (b) => b.richRgb,
         55,
         46
       );
-      registerBg(accentRaw);
-      newSchemes.push(createScheme(accentRaw, "明亮色彩", 'tinted'));
-      
+      registerBg(brightRaw);
+      newSchemes.push(createScheme(brightRaw, "明亮色彩", 'tinted'));
+
       const softCandidate = [...allBins]
         .filter(b => b.repVal > 0.72 && b.repSat > 0.06)
         .sort((a, b) => {
@@ -1653,7 +2046,7 @@ export default function ImageEditor() {
 
     const previewScale = (() => {
       try {
-        const el = getActivePreviewCardEl() || img;
+        const el = desktopPreviewCardRef.current || img;
         const rect = el.getBoundingClientRect();
         if (!rect || rect.width <= 0) return 1;
         const previewCardWidth = rect.width;
@@ -1691,8 +2084,20 @@ export default function ImageEditor() {
       }
     };
 
+    const cardW = (desktopPreviewCardRef.current?.getBoundingClientRect().width) || 572;
+    const cardH = (desktopPreviewCardRef.current?.getBoundingClientRect().height) || 763;
+    const basePreviewFontPx = (() => {
+      if (isPortrait) {
+        const stripWPreview = Math.round(cardW * clampStripRatio(portraitStripRatio, portraitStripMin));
+        return Math.round(stripWPreview * 0.188) * textScale;
+      } else {
+        const stripHPreview = Math.round(cardH * clampStripRatio(landscapeStripRatio, landscapeStripMin));
+        return Math.round(stripHPreview * 0.188) * textScale;
+      }
+    })();
+
     if (isPortrait) {
-      const stripW = Math.round(targetWidth * 0.22);
+      const stripW = Math.round(targetWidth * clampStripRatio(portraitStripRatio, portraitStripMin));
       ctx.fillStyle = selectedColor;
       ctx.fillRect(0, 0, stripW, targetHeight);
       const imgX = stripW;
@@ -1725,8 +2130,7 @@ export default function ImageEditor() {
       ctx.rotate(Math.PI / 2);
       ctx.fillStyle = textColor;
       const selectedFont = FONT_OPTIONS[selectedFontIndex];
-      const fontWeight = "400";
-      const basePreviewFontPx = 13 * textScale;
+      const fontWeight = selectedFont.weight;
       const fontPx = getExportFontPx(basePreviewFontPx);
       const spacingRatio = exportTextIsLong ? 0.12 : 0.18;
       ctx.font = `${selectedFont.style} ${fontWeight} ${fontPx}px "${selectedFont.value}", serif`;
@@ -1735,7 +2139,7 @@ export default function ImageEditor() {
       ctx.restore();
     } else {
       // Landscape Layout: Image on Bottom (60%), Text on Top (40%)
-      const stripH = Math.round(targetHeight * 0.4);
+      const stripH = Math.round(targetHeight * clampStripRatio(landscapeStripRatio, landscapeStripMin));
       ctx.fillStyle = selectedColor;
       ctx.fillRect(0, 0, targetWidth, stripH);
 
@@ -1767,8 +2171,7 @@ export default function ImageEditor() {
       // Text on Top (centered in the top 50%)
       ctx.fillStyle = textColor;
       const selectedFont = FONT_OPTIONS[selectedFontIndex];
-      const fontWeight = "400";
-      const basePreviewFontPx = 17 * textScale;
+      const fontWeight = selectedFont.weight;
       const fontPx = getExportFontPx(basePreviewFontPx);
       const spacingRatio = exportTextIsLong ? 0.1 : 0.16;
       ctx.font = `${selectedFont.style} ${fontWeight} ${fontPx}px "${selectedFont.value}", serif`;
@@ -1831,7 +2234,6 @@ export default function ImageEditor() {
     return brightness < 128;
   };
 
-  const isPortrait = imageRatio < 1;
   const previewText = (() => {
     const loc = typeof location === "string" ? location.trim() : "";
     const dat = typeof date === "string" ? date.trim() : "";
@@ -1898,7 +2300,7 @@ export default function ImageEditor() {
               </div>
             )}
             <div className="fixed left-1/2 -translate-x-1/2 bottom-[calc(env(safe-area-inset-bottom)+94px)] z-[9999] pointer-events-none lg:hidden">
-              <div className="bg-black/80 text-white px-4 py-2 rounded-lg text-xs font-medium backdrop-blur-sm flex items-center gap-2">
+              <div className="bg-[color:var(--cm-brass)] text-white px-4 py-2 rounded-xl text-xs font-medium shadow-lg flex items-center gap-2">
                 <Pipette className="w-4 h-4" />
                 {isPickerMode === "bg" ? "触摸拾取背景色" : "触摸拾取文字色"}
                 <span className="font-mono bg-white/20 px-1.5 py-0.5 rounded">{hoverColor.toUpperCase()}</span>
@@ -1909,12 +2311,33 @@ export default function ImageEditor() {
         )
       : null;
 
+  const modeHintsPortal =
+    typeof document !== "undefined" && (isCropMode || isRangeMode)
+      ? createPortal(
+          <div className="fixed left-1/2 -translate-x-1/2 bottom-[calc(env(safe-area-inset-bottom)+94px)] z-[9999] pointer-events-none lg:hidden">
+            {isCropMode ? (
+            <div className="bg-[color:var(--cm-brass)] text-white px-4 py-2 rounded-xl text-xs font-medium shadow-lg flex items-center gap-2">
+              <Scissors className="w-4 h-4" />
+              裁剪模式 · 拖动调整 · 点完成退出
+            </div>
+            ) : (
+            <div className="bg-[color:var(--cm-brass)] text-white px-4 py-2 rounded-xl text-xs font-medium shadow-lg flex items-center gap-2">
+              <Sliders className="w-4 h-4" />
+              色彩范围 · 拖动分割线 · 点完成退出
+            </div>
+            )}
+          </div>,
+          document.body
+        )
+      : null;
+
   return (
     <div
       ref={editorRootRef}
       className="grid grid-cols-1 lg:grid-cols-12 lg:grid-rows-[1fr_auto] gap-3 lg:gap-x-8 lg:gap-y-6 items-start lg:items-stretch lg:min-h-[calc(100vh-24px)]"
     >
       {pickerPortal}
+      {modeHintsPortal}
       {!image && (
         <div className="lg:col-span-12 bg-[color:var(--cm-surface)] p-10 rounded-2xl shadow-sm border border-[color:var(--cm-border)] flex flex-col items-center justify-center gap-6 min-h-[260px]">
           <div className="flex flex-col items-center gap-4 text-[color:var(--cm-ink-2)]">
@@ -1929,7 +2352,7 @@ export default function ImageEditor() {
                 <Upload className="w-4 h-4" />
                 上传照片
               </span>
-              <input type="file" accept="image/*" onChange={handleFileUpload} className="sr-only" />
+              <input type="file" accept="image/*,video/*,.heic,.heif,.avci,.avcs" onChange={handleFileUpload} className="sr-only" />
             </label>
           </div>
         </div>
@@ -1946,22 +2369,20 @@ export default function ImageEditor() {
                       <div
                         ref={mobilePreviewRef}
                         className="relative w-[92vw] max-w-[420px] sm:max-w-[430px] mx-auto flex justify-center bg-[color:var(--cm-surface)] p-2 sm:p-3 rounded-2xl shadow-sm border border-[color:var(--cm-border)] items-center"
-                        style={
-                          isCropMode
-                            ? { paddingRight: `${miniMapSize + 28}px`, paddingBottom: `${miniMapSize + 28}px` }
-                            : undefined
-                        }
+                        style={{ minHeight: "50svh" }}
                       >
                         <div
                           ref={mobilePreviewCardRef}
-                          className="relative h-[50svh] max-h-[520px] aspect-[3/4] shadow-2xl rounded-lg overflow-hidden bg-[color:var(--cm-surface)] flex flex-col sm:flex-row"
-                          style={{ flexDirection: isPortrait ? "row" : "column" }}
+                          className="relative h-[50svh] max-h-[520px] aspect-[3/4] shadow-2xl rounded-lg overflow-hidden bg-[color:var(--cm-surface)] grid"
+                          style={
+                            isPortrait
+                              ? { gridTemplateColumns: `${portraitStripPct}% 1fr`, touchAction: isRangeMode && !isCropMode && !isPickerMode ? "none" : undefined }
+                              : { gridTemplateRows: `${landscapeStripPct}% 1fr`, touchAction: isRangeMode && !isCropMode && !isPickerMode ? "none" : undefined }
+                          }
                         >
                           <div
-                              className={cn(
-                                "relative flex items-center justify-center shrink-0",
-                                isPortrait ? "w-[22%] h-full" : "w-full h-[40%]"
-                              )}
+                            ref={mobileStripRef}
+                            className="relative flex items-center justify-center min-w-0 min-h-0"
                             style={{ backgroundColor: selectedColor }}
                           >
                             <div
@@ -1975,7 +2396,8 @@ export default function ImageEditor() {
                                 color: textColor,
                                 fontFamily: FONT_OPTIONS[selectedFontIndex].cssVar,
                                 fontStyle: FONT_OPTIONS[selectedFontIndex].style,
-                                fontSize: `${(isPortrait ? 13 : 17) * textScale}px`,
+                                fontWeight: FONT_OPTIONS[selectedFontIndex].weight,
+                                fontSize: `${mobilePreviewFontPx}px`,
                                 letterSpacing: `${isPortrait ? (previewTextIsLong ? 0.12 : 0.18) : (previewTextIsLong ? 0.1 : 0.16)}em`,
                               }}
                             >
@@ -1986,11 +2408,11 @@ export default function ImageEditor() {
                           <div
                             ref={mobileCropViewportRef}
                             className={cn(
-                              "relative overflow-hidden bg-zinc-50 flex items-center justify-center grow touch-pan-y",
+                              "relative overflow-hidden bg-zinc-50 flex items-center justify-center w-full h-full touch-pan-y min-w-0 min-h-0",
                               isPickerMode && "touch-none",
                               isCropMode && "touch-none",
                               isCropMode && (isCropDragging ? "cursor-grabbing" : "cursor-grab"),
-                              isPortrait ? "h-full" : "w-full h-[60%]"
+                              isPortrait ? "h-full" : "w-full"
                             )}
                             style={{ touchAction: isCropMode ? "none" : undefined }}
                             onPointerDown={handleCropPointerDown}
@@ -2034,13 +2456,13 @@ export default function ImageEditor() {
                                   />
                                 </div>
                                 <div className="pointer-events-none absolute inset-0 z-10">
-                                  <div className="absolute inset-0 border-2 border-white shadow-[0_14px_40px_rgba(0,0,0,0.35)]" />
-                                  <div className="absolute top-[33.33%] bottom-[33.33%] left-0 right-0 border-y border-white/40" />
-                                  <div className="absolute left-[33.33%] right-[33.33%] top-0 bottom-0 border-x border-white/40" />
-                                  <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-white" />
-                                  <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-white" />
-                                  <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-white" />
-                                  <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-white" />
+                                  <div className="absolute inset-0 border-[3px] border-white/95 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.22),inset_0_0_28px_rgba(0,0,0,0.32)]" />
+                                  <div className="absolute top-[33.33%] bottom-[33.33%] left-0 right-0 border-y-2 border-white/45" />
+                                  <div className="absolute left-[33.33%] right-[33.33%] top-0 bottom-0 border-x-2 border-white/45" />
+                                  <div className="absolute top-0 left-0 w-7 h-7 border-t-[3px] border-l-[3px] border-white/95" />
+                                  <div className="absolute top-0 right-0 w-7 h-7 border-t-[3px] border-r-[3px] border-white/95" />
+                                  <div className="absolute bottom-0 left-0 w-7 h-7 border-b-[3px] border-l-[3px] border-white/95" />
+                                  <div className="absolute bottom-0 right-0 w-7 h-7 border-b-[3px] border-r-[3px] border-white/95" />
                                 </div>
                               </>
                             ) : (
@@ -2136,24 +2558,66 @@ export default function ImageEditor() {
                               </div>
                             )}
                           </div>
-                        </div>
-                        {isCropMode && mobileMiniMap && (
-                          <div
-                            className="pointer-events-none absolute right-2 bottom-2 z-30 rounded-xl overflow-hidden border border-white/70 shadow-lg bg-black/15"
-                            style={{ width: `${miniMapSize}px`, height: `${miniMapSize}px` }}
-                          >
-                            <img src={image || FALLBACK_PIXEL} alt="" draggable={false} className="absolute inset-0 w-full h-full object-contain" />
+                          {image && isRangeMode && !isCropMode && !isPickerMode && (
+                            <div className="absolute inset-0 z-30 pointer-events-none">
+                              <div
+                                className={cn("absolute", isPortrait ? "top-0 bottom-0" : "left-0 right-0")}
+                                style={
+                                  isPortrait
+                                    ? { left: mobileStripEdgePx !== null ? `${mobileStripEdgePx}px` : `${portraitStripPct}%` }
+                                    : { top: mobileStripEdgePx !== null ? `${mobileStripEdgePx}px` : `${landscapeStripPct}%` }
+                                }
+                              >
+                                <div
+                                  className={cn(
+                                    "absolute bg-white/80 shadow-[0_0_0_1px_rgba(0,0,0,0.22)]",
+                                    isPortrait
+                                      ? "left-0 top-0 bottom-0 w-[3px]"
+                                      : "top-0 left-0 right-0 h-[3px]"
+                                  )}
+                                  style={isPortrait ? { transform: "translateX(-1.5px)" } : { transform: "translateY(-1.5px)" }}
+                                />
+                                <div
+                                  className={cn(
+                                    "absolute w-10 h-10 rounded-full bg-white/80 border border-white shadow-[0_10px_24px_rgba(0,0,0,0.18)] backdrop-blur pointer-events-auto flex items-center justify-center",
+                                    isStripDragging && "ring-2 ring-[color:var(--cm-brass)]",
+                                    isPortrait
+                                      ? "left-0 -translate-x-1/2 top-1/2 -translate-y-1/2 cursor-col-resize"
+                                      : "top-0 -translate-y-1/2 left-1/2 -translate-x-1/2 cursor-row-resize"
+                                  )}
+                                  style={{ touchAction: "none" }}
+                                  onPointerDown={handleStripPointerDown(isPortrait ? "portrait" : "landscape")}
+                                  onPointerMove={handleStripPointerMove}
+                                  onPointerUp={handleStripPointerEnd}
+                                  onPointerCancel={handleStripPointerEnd}
+                                >
+                                  {isPortrait ? (
+                                    <ArrowLeftRight className="w-5 h-5 text-[color:var(--cm-ink-2)] opacity-70" />
+                                  ) : (
+                                    <ArrowUpDown className="w-5 h-5 text-[color:var(--cm-ink-2)] opacity-70" />
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          {isCropMode && mobileMiniMap && (
                             <div
-                              className="absolute rounded-md border-2 border-white/90 shadow-[0_10px_24px_rgba(0,0,0,0.35)]"
-                              style={{
-                                left: `${mobileMiniMap.frameX}px`,
-                                top: `${mobileMiniMap.frameY}px`,
-                                width: `${mobileMiniMap.frameW}px`,
-                                height: `${mobileMiniMap.frameH}px`,
-                              }}
-                            />
-                          </div>
-                        )}
+                              className="pointer-events-none absolute right-2 bottom-2 z-30 rounded-xl overflow-hidden border border-white/70 shadow-lg bg-black/15"
+                              style={{ width: `${miniMapSize}px`, height: `${miniMapSize}px` }}
+                            >
+                              <img src={image || FALLBACK_PIXEL} alt="" draggable={false} className="absolute inset-0 w-full h-full object-contain" />
+                              <div
+                                className="absolute rounded-md border-2 border-white/90 shadow-[0_10px_24px_rgba(0,0,0,0.35)]"
+                                style={{
+                                  left: `${mobileMiniMap.frameX}px`,
+                                  top: `${mobileMiniMap.frameY}px`,
+                                  width: `${mobileMiniMap.frameW}px`,
+                                  height: `${mobileMiniMap.frameH}px`,
+                                }}
+                              />
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       <div
@@ -2223,13 +2687,13 @@ export default function ImageEditor() {
                                 {schemes
                                   .map((scheme, schemeIndex) => ({ scheme, schemeIndex }))
                                   .filter(({ scheme }) => scheme.name !== "自定义")
-                                  .slice(0, 5)
+                                  .slice(0, 6)
                                   .map(({ scheme, schemeIndex }) => {
                                     const isSelected = selectedSchemeIndex === schemeIndex;
                                     return (
                                       <button
                                         key={`${scheme.name}-${scheme.bg}-${scheme.text}`}
-                                        onClick={() => setSelectedSchemeIndex(schemeIndex)}
+                                        onClick={() => handleSelectScheme(schemeIndex)}
                                         className={cn(
                                           "flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all w-[78px] shrink-0 outline-none focus:outline-none focus-visible:outline-none",
                                           isSelected
@@ -2280,8 +2744,12 @@ export default function ImageEditor() {
                               </label>
                               <button
                                 onClick={() => {
-                                  setPickerTarget("bg");
-                                  setIsPickerMode("bg");
+                                  if (isPickerMode === "bg") {
+                                    setIsPickerMode(null);
+                                  } else {
+                                    setPickerTarget("bg");
+                                    setIsPickerMode("bg");
+                                  }
                                 }}
                                 className={cn(
                                   "w-[52px] h-[52px] rounded-xl border-2 transition-all flex items-center justify-center",
@@ -2327,8 +2795,12 @@ export default function ImageEditor() {
                               </label>
                               <button
                                 onClick={() => {
-                                  setPickerTarget("text");
-                                  setIsPickerMode("text");
+                                  if (isPickerMode === "text") {
+                                    setIsPickerMode(null);
+                                  } else {
+                                    setPickerTarget("text");
+                                    setIsPickerMode("text");
+                                  }
                                 }}
                                 className={cn(
                                   "w-[52px] h-[52px] rounded-xl border-2 transition-all flex items-center justify-center",
@@ -2354,9 +2826,85 @@ export default function ImageEditor() {
                           </div>
                         </div>
 
-                        <div className="px-4 py-2 bg-[color:color-mix(in_srgb,var(--cm-brass)_10%,transparent)] border border-[color:color-mix(in_srgb,var(--cm-brass)_40%,var(--cm-border))] rounded-xl">
-                          <p className="text-xs text-[color:var(--cm-ink-2)] text-center">✨ 颜色将实时应用到预览中</p>
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <div className="text-sm font-medium text-[color:var(--cm-ink-2)]">色彩范围</div>
+                              <div className={cn("text-[11px] text-[color:var(--cm-ink-3)]", !isRangeMode && "opacity-60")}>也可以在预览图上拖动分割线调整</div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (isCropMode || isPickerMode) return;
+                                setIsRangeMode((v) => !v);
+                              }}
+                              className="h-8 px-3 rounded-xl text-sm font-medium border-2 border-[color:var(--cm-border-strong)] bg-[color:var(--cm-surface)] text-[color:var(--cm-ink-2)] hover:border-[color:color-mix(in_srgb,var(--cm-brass)_44%,var(--cm-border-strong))] whitespace-nowrap"
+                            >
+                              {isRangeMode ? "完成" : "编辑"}
+                            </button>
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <div className="text-xs text-[color:var(--cm-ink-3)]">色块占比</div>
+                            <div className={cn("text-xs tabular-nums", isRangeMode ? "text-[color:var(--cm-ink-3)]" : "text-[color:var(--cm-ink-3)] opacity-60")}>
+                              {Math.round(
+                                clampStripRatio(
+                                  isPortrait ? portraitStripRatio : landscapeStripRatio,
+                                  isPortrait ? portraitStripMin : landscapeStripMin
+                                ) * 100
+                              )}
+                              %
+                            </div>
+                          </div>
+                          <div className={cn("flex items-center gap-3", !isRangeMode && "opacity-70")}>
+                            <input
+                              type="range"
+                              min={isPortrait ? portraitStripMin : landscapeStripMin}
+                              max={stripMax}
+                              step={0.01}
+                              value={clampStripRatio(
+                                isPortrait ? portraitStripRatio : landscapeStripRatio,
+                                isPortrait ? portraitStripMin : landscapeStripMin
+                              )}
+                              style={{
+                                ["--cm-range-pct" as any]: `${stripRangePct(
+                                  isPortrait ? portraitStripRatio : landscapeStripRatio,
+                                  isPortrait ? portraitStripMin : landscapeStripMin
+                                )}%`,
+                              }}
+                              disabled={!isRangeMode}
+                              onChange={(e) => {
+                                if (!isRangeMode) return;
+                                const v = Number.parseFloat(e.target.value);
+                                if (!Number.isFinite(v)) return;
+                                if (isPortrait) {
+                                  setPortraitStripRatio(clampStripRatio(v, portraitStripMin));
+                                  return;
+                                }
+                                setLandscapeStripRatio(clampStripRatio(v, landscapeStripMin));
+                              }}
+                              className="cm-slider w-full"
+                            />
+                            <button
+                              type="button"
+                              disabled={!isRangeMode}
+                              onClick={() => {
+                                if (!isRangeMode) return;
+                                setPortraitStripRatio(portraitStripMin);
+                                setLandscapeStripRatio(landscapeStripDefault);
+                              }}
+                              className={cn(
+                                "h-9 px-3 rounded-xl text-sm font-medium border-2 bg-[color:var(--cm-surface)] whitespace-nowrap",
+                                isRangeMode
+                                  ? "border-[color:var(--cm-border-strong)] text-[color:var(--cm-ink-2)] hover:border-[color:color-mix(in_srgb,var(--cm-brass)_44%,var(--cm-border-strong))]"
+                                  : "border-[color:var(--cm-border)] text-[color:var(--cm-ink-3)] cursor-not-allowed"
+                              )}
+                            >
+                              重置
+                            </button>
+                          </div>
                         </div>
+
                       </div>
                     )}
 
@@ -2373,7 +2921,7 @@ export default function ImageEditor() {
                                   ? "border-transparent ring-2 ring-[color:var(--cm-brass)] bg-[color:var(--cm-ink)] text-[color:var(--cm-surface)]"
                                   : "border-[color:var(--cm-border-strong)] bg-[color:var(--cm-surface)] text-[color:var(--cm-ink-2)] hover:border-[color:color-mix(in_srgb,var(--cm-brass)_44%,var(--cm-border-strong))]"
                               )}
-                              style={{ fontFamily: font.cssVar, fontStyle: font.style }}
+                              style={{ fontFamily: font.cssVar, fontStyle: font.style, fontWeight: font.weight }}
                             >
                               {font.name}
                             </button>
@@ -2431,9 +2979,9 @@ export default function ImageEditor() {
                                 locationManuallyEditedRef.current = true;
                                 setLocation("");
                               }}
-                              className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-[color:var(--cm-surface-2)] text-[color:var(--cm-ink-2)] text-lg leading-none flex items-center justify-center"
+                              className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-[color:var(--cm-surface-2)] text-[color:var(--cm-ink-2)] flex items-center justify-center"
                             >
-                              ×
+                              <X className="w-4 h-4" />
                             </button>
                           )}
                         </div>
@@ -2460,9 +3008,9 @@ export default function ImageEditor() {
                                 dateManuallyEditedRef.current = true;
                                 setDate("");
                               }}
-                              className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-[color:var(--cm-surface-2)] text-[color:var(--cm-ink-2)] text-lg leading-none flex items-center justify-center"
+                              className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-[color:var(--cm-surface-2)] text-[color:var(--cm-ink-2)] flex items-center justify-center"
                             >
-                              ×
+                              <X className="w-4 h-4" />
                             </button>
                           )}
                         </div>
@@ -2512,7 +3060,7 @@ export default function ImageEditor() {
                         <Upload className="w-5 h-5" />
                         上传照片
                       </span>
-                      <input type="file" accept="image/*" onChange={handleFileUpload} className="sr-only" />
+                      <input type="file" accept="image/*,video/*,.heic,.heif,.avci,.avcs" onChange={handleFileUpload} className="sr-only" />
                     </label>
                     <button
                       onClick={downloadImage}
@@ -2531,22 +3079,35 @@ export default function ImageEditor() {
                   <div className="bg-[color:var(--cm-surface)] p-4 rounded-2xl shadow-sm border border-[color:var(--cm-border)] h-full flex flex-col">
                     <div
                       className="flex-1 flex items-center justify-center relative"
-                      style={
-                        isCropMode
-                          ? { paddingRight: `${miniMapSize + 28}px`, paddingBottom: `${miniMapSize + 28}px` }
-                          : undefined
-                      }
                     >
                       <div
-                        className={cn(
-                          "relative w-full max-w-[572px] aspect-[3/4] shadow-2xl rounded-lg overflow-hidden bg-[color:var(--cm-surface)] mx-auto",
-                          isPortrait ? "grid grid-cols-[22%_1fr]" : "grid grid-rows-[40%_60%]"
-                        )}
+                        className="relative w-full max-w-[572px] aspect-[3/4] shadow-2xl rounded-lg overflow-hidden bg-[color:var(--cm-surface)] mx-auto grid"
+                        style={
+                          isPortrait
+                            ? { gridTemplateColumns: `${portraitStripPct}% 1fr`, touchAction: isRangeMode && !isCropMode && !isPickerMode ? "none" : undefined }
+                            : { gridTemplateRows: `${landscapeStripPct}% 1fr`, touchAction: isRangeMode && !isCropMode && !isPickerMode ? "none" : undefined }
+                        }
                         ref={desktopPreviewCardRef}
                       >
+                      {(isCropMode || isRangeMode) && (
+                        <div className="hidden lg:flex items-center gap-2 px-4 py-2 bg-[color:var(--cm-brass)] text-white rounded-xl text-xs font-medium shadow-lg absolute top-3 left-1/2 -translate-x-1/2 z-30">
+                          {isCropMode ? (
+                            <>
+                              <Scissors className="w-4 h-4" />
+                              <span>裁剪模式 · 拖动调整 · 点完成退出</span>
+                            </>
+                          ) : (
+                            <>
+                              <Sliders className="w-4 h-4" />
+                              <span>色彩范围 · 拖动分割线 · 点完成退出</span>
+                            </>
+                          )}
+                        </div>
+                      )}
                       <div
+                        ref={desktopStripRef}
                         className={cn(
-                          "relative flex items-center justify-center",
+                          "relative flex items-center justify-center min-w-0 min-h-0",
                           isPortrait ? "h-full" : "w-full"
                         )}
                         style={{ backgroundColor: selectedColor }}
@@ -2562,7 +3123,8 @@ export default function ImageEditor() {
                             color: textColor,
                             fontFamily: FONT_OPTIONS[selectedFontIndex].cssVar,
                             fontStyle: FONT_OPTIONS[selectedFontIndex].style,
-                            fontSize: `${(isPortrait ? 13 : 17) * textScale}px`,
+                            fontWeight: FONT_OPTIONS[selectedFontIndex].weight,
+                            fontSize: `${desktopPreviewFontPx}px`,
                             letterSpacing: `${isPortrait ? (previewTextIsLong ? 0.12 : 0.18) : (previewTextIsLong ? 0.1 : 0.16)}em`,
                           }}
                         >
@@ -2571,7 +3133,7 @@ export default function ImageEditor() {
                       </div>
                       <div
                         className={cn(
-                          "relative overflow-hidden bg-[color:var(--cm-paper)] flex items-center justify-center",
+                          "relative overflow-hidden bg-[color:var(--cm-paper)] flex items-center justify-center min-w-0 min-h-0",
                           isCropMode && (isCropDragging ? "cursor-grabbing" : "cursor-grab"),
                           isPortrait ? "h-full" : "w-full"
                         )}
@@ -2618,13 +3180,13 @@ export default function ImageEditor() {
                             />
                           </div>
                           <div className="pointer-events-none absolute inset-0 z-10">
-                            <div className="absolute inset-0 border-2 border-white shadow-[0_14px_40px_rgba(0,0,0,0.35)]" />
-                            <div className="absolute top-[33.33%] bottom-[33.33%] left-0 right-0 border-y border-white/40" />
-                            <div className="absolute left-[33.33%] right-[33.33%] top-0 bottom-0 border-x border-white/40" />
-                            <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-white" />
-                            <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-white" />
-                            <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-white" />
-                            <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-white" />
+                            <div className="absolute inset-0 border-[3px] border-white/95 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.22),inset_0_0_28px_rgba(0,0,0,0.32)]" />
+                            <div className="absolute top-[33.33%] bottom-[33.33%] left-0 right-0 border-y-2 border-white/45" />
+                            <div className="absolute left-[33.33%] right-[33.33%] top-0 bottom-0 border-x-2 border-white/45" />
+                            <div className="absolute top-0 left-0 w-7 h-7 border-t-[3px] border-l-[3px] border-white/95" />
+                            <div className="absolute top-0 right-0 w-7 h-7 border-t-[3px] border-r-[3px] border-white/95" />
+                            <div className="absolute bottom-0 left-0 w-7 h-7 border-b-[3px] border-l-[3px] border-white/95" />
+                            <div className="absolute bottom-0 right-0 w-7 h-7 border-b-[3px] border-r-[3px] border-white/95" />
                           </div>
                         </>
                         ) : (
@@ -2720,7 +3282,40 @@ export default function ImageEditor() {
                           </div>
                         )}
                       </div>
-                      </div>
+                      {image && isRangeMode && !isCropMode && !isPickerMode && (
+                        <div className="absolute inset-0 z-20 pointer-events-none">
+                          <div
+                            className={cn("absolute", isPortrait ? "top-0 bottom-0" : "left-0 right-0")}
+                            style={
+                              isPortrait
+                                ? { left: desktopStripEdgePx !== null ? `${desktopStripEdgePx}px` : `${portraitStripPct}%` }
+                                : { top: desktopStripEdgePx !== null ? `${desktopStripEdgePx}px` : `${landscapeStripPct}%` }
+                            }
+                          >
+                            <div className={cn("absolute bg-white/80 shadow-[0_0_0_1px_rgba(0,0,0,0.22)]", isPortrait ? "left-0 -translate-x-1/2 top-0 bottom-0 w-[3px]" : "top-0 -translate-y-1/2 left-0 right-0 h-[3px]")} />
+                            <div
+                              className={cn(
+                                "absolute w-10 h-10 rounded-full bg-white/80 border border-white shadow-[0_10px_24px_rgba(0,0,0,0.18)] backdrop-blur pointer-events-auto flex items-center justify-center",
+                                isStripDragging && "ring-2 ring-[color:var(--cm-brass)]",
+                                isPortrait
+                                  ? "left-0 -translate-x-1/2 top-1/2 -translate-y-1/2 cursor-col-resize"
+                                  : "top-0 -translate-y-1/2 left-1/2 -translate-x-1/2 cursor-row-resize"
+                              )}
+                              style={{ touchAction: "none" }}
+                              onPointerDown={handleStripPointerDown(isPortrait ? "portrait" : "landscape")}
+                              onPointerMove={handleStripPointerMove}
+                              onPointerUp={handleStripPointerEnd}
+                              onPointerCancel={handleStripPointerEnd}
+                            >
+                              {isPortrait ? (
+                                <ArrowLeftRight className="w-5 h-5 text-[color:var(--cm-ink-2)] opacity-70" />
+                              ) : (
+                                <ArrowUpDown className="w-5 h-5 text-[color:var(--cm-ink-2)] opacity-70" />
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
                       {isCropMode && desktopMiniMap && (
                         <div
                           className="pointer-events-none absolute right-2 bottom-2 z-30 rounded-xl overflow-hidden border border-white/70 shadow-lg bg-black/15"
@@ -2738,19 +3333,23 @@ export default function ImageEditor() {
                           />
                         </div>
                       )}
+                      </div>
                     </div>
                   </div>
                 </div>
           </div>
 
           <div className="hidden lg:flex lg:col-span-5 lg:col-start-8 lg:row-start-1 flex flex-col gap-6 h-full">
-            <div className="bg-[color:var(--cm-surface)] p-4 lg:p-4 rounded-2xl shadow-sm border border-[color:var(--cm-border)] flex flex-col gap-4 lg:gap-4 flex-1">
+            <div className="bg-[color:var(--cm-surface)] p-4 lg:p-4 rounded-2xl shadow-sm border border-[color:var(--cm-border)] flex flex-col gap-4 lg:gap-4 flex-1 relative">
+              {(isCropMode || isRangeMode) && (
+                <div className="absolute inset-0 z-40 rounded-2xl cursor-not-allowed" />
+              )}
               <label className="cm-upload-btn">
                 <span className="inline-flex items-center justify-center gap-2">
                   <Upload className="w-4 h-4" />
                   上传照片
                 </span>
-                <input type="file" accept="image/*" onChange={handleFileUpload} className="sr-only" />
+                <input type="file" accept="image/*,video/*,.heic,.heif,.avci,.avcs" onChange={handleFileUpload} className="sr-only" />
               </label>
 
               <div className="space-y-4 lg:space-y-4">
@@ -2760,17 +3359,17 @@ export default function ImageEditor() {
                 </label>
                 
                 <div className="hidden lg:block">
-                  <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 lg:mx-0 lg:px-0 lg:pb-0 lg:grid lg:grid-cols-5 lg:gap-3 lg:overflow-visible">
+                  <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 lg:mx-0 lg:px-0 lg:pb-0 lg:grid lg:grid-cols-6 lg:gap-3 lg:overflow-visible">
                     {schemes
                       .map((scheme, schemeIndex) => ({ scheme, schemeIndex }))
                       .filter(({ scheme }) => scheme.name !== "自定义")
-                      .slice(0, 5)
+                      .slice(0, 6)
                       .map(({ scheme, schemeIndex }) => {
                       const isSelected = selectedSchemeIndex === schemeIndex;
                       return (
                       <button
                         key={`${scheme.name}-${scheme.bg}-${scheme.text}`}
-                        onClick={() => setSelectedSchemeIndex(schemeIndex)}
+                        onClick={() => handleSelectScheme(schemeIndex)}
                         className={cn(
                           "flex flex-col items-center gap-2 p-2 rounded-xl transition-all w-[78px] shrink-0 lg:w-auto outline-none focus:outline-none focus-visible:outline-none",
                           isSelected
@@ -2820,7 +3419,7 @@ export default function ImageEditor() {
                           </div>
                         </label>
                         <button
-                          onClick={() => { setPickerTarget('bg'); setIsPickerMode('bg'); }}
+                          onClick={() => { if (isPickerMode === 'bg') { setIsPickerMode(null); } else { setPickerTarget('bg'); setIsPickerMode('bg'); } }}
                           className={cn(
                             "w-10 h-10 rounded-lg border-2 transition-all flex items-center justify-center flex-shrink-0",
                             isPickerMode === 'bg' 
@@ -2863,7 +3462,7 @@ export default function ImageEditor() {
                           </div>
                         </label>
                         <button
-                          onClick={() => { setPickerTarget('text'); setIsPickerMode('text'); }}
+                          onClick={() => { if (isPickerMode === 'text') { setIsPickerMode(null); } else { setPickerTarget('text'); setIsPickerMode('text'); } }}
                           className={cn(
                             "w-10 h-10 rounded-lg border-2 transition-all flex items-center justify-center flex-shrink-0",
                             isPickerMode === 'text' 
@@ -2884,12 +3483,85 @@ export default function ImageEditor() {
                       </div>
                     </div>
                   </div>
-                  
-                  <div className="mt-3 px-4 py-2 bg-[color:color-mix(in_srgb,var(--cm-brass)_10%,transparent)] border border-[color:color-mix(in_srgb,var(--cm-brass)_40%,var(--cm-border))] rounded-lg">
-                    <p className="text-[10px] text-[color:var(--cm-ink-2)] text-center">
-                      ✨ 颜色将实时应用到预览中，无需点击确认
-                    </p>
+
+                  <div className={cn("mt-4 space-y-2", isRangeMode && "relative z-50")}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="text-xs font-medium text-[color:var(--cm-ink-2)]">色彩范围</div>
+                        <div className={cn("text-[10px] text-[color:var(--cm-ink-3)]", !isRangeMode && "opacity-60")}>也可以在预览图上拖动分割线调整</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isCropMode || isPickerMode) return;
+                          setIsRangeMode((v) => !v);
+                        }}
+                        className="h-7 px-3 rounded-lg text-xs font-medium border-2 border-[color:var(--cm-border-strong)] bg-[color:var(--cm-surface)] text-[color:var(--cm-ink-2)] hover:border-[color:color-mix(in_srgb,var(--cm-brass)_44%,var(--cm-border-strong))] whitespace-nowrap"
+                      >
+                        {isRangeMode ? "完成" : "编辑"}
+                      </button>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="text-[10px] text-[color:var(--cm-ink-3)]">色块占比</div>
+                      <div className={cn("text-[10px] tabular-nums", isRangeMode ? "text-[color:var(--cm-ink-3)]" : "text-[color:var(--cm-ink-3)] opacity-60")}>
+                        {Math.round(
+                          clampStripRatio(
+                            isPortrait ? portraitStripRatio : landscapeStripRatio,
+                            isPortrait ? portraitStripMin : landscapeStripMin
+                          ) * 100
+                        )}
+                        %
+                      </div>
+                    </div>
+                    <div className={cn("flex items-center gap-3", !isRangeMode && "opacity-70")}>
+                      <input
+                        type="range"
+                        min={isPortrait ? portraitStripMin : landscapeStripMin}
+                        max={stripMax}
+                        step={0.01}
+                        value={clampStripRatio(
+                          isPortrait ? portraitStripRatio : landscapeStripRatio,
+                          isPortrait ? portraitStripMin : landscapeStripMin
+                        )}
+                        style={{
+                          ["--cm-range-pct" as any]: `${stripRangePct(
+                            isPortrait ? portraitStripRatio : landscapeStripRatio,
+                            isPortrait ? portraitStripMin : landscapeStripMin
+                          )}%`,
+                        }}
+                        disabled={!isRangeMode}
+                        onChange={(e) => {
+                          if (!isRangeMode) return;
+                          const v = Number.parseFloat(e.target.value);
+                          if (!Number.isFinite(v)) return;
+                          if (isPortrait) {
+                            setPortraitStripRatio(clampStripRatio(v, portraitStripMin));
+                            return;
+                          }
+                          setLandscapeStripRatio(clampStripRatio(v, landscapeStripMin));
+                        }}
+                        className="cm-slider w-full"
+                      />
+                      <button
+                        type="button"
+                        disabled={!isRangeMode}
+                        onClick={() => {
+                          if (!isRangeMode) return;
+                          setPortraitStripRatio(portraitStripMin);
+                          setLandscapeStripRatio(landscapeStripDefault);
+                        }}
+                        className={cn(
+                          "h-8 px-3 rounded-lg text-xs font-medium border-2 bg-[color:var(--cm-surface)] whitespace-nowrap",
+                          isRangeMode
+                            ? "border-[color:var(--cm-border-strong)] text-[color:var(--cm-ink-2)] hover:border-[color:color-mix(in_srgb,var(--cm-brass)_44%,var(--cm-border-strong))]"
+                            : "border-[color:var(--cm-border)] text-[color:var(--cm-ink-3)] cursor-not-allowed"
+                        )}
+                      >
+                        重置
+                      </button>
+                    </div>
                   </div>
+                  
                 </div>
 
                 <div className="hidden lg:block space-y-4">
@@ -2905,7 +3577,7 @@ export default function ImageEditor() {
                             ? "border-transparent ring-2 ring-[color:var(--cm-brass)] bg-[color:var(--cm-ink)] text-[color:var(--cm-surface)]"
                                   : "border-[color:var(--cm-border-strong)] bg-[color:var(--cm-surface)] text-[color:var(--cm-ink-2)] hover:border-[color:color-mix(in_srgb,var(--cm-brass)_44%,var(--cm-border-strong))]"
                         )}
-                        style={{ fontFamily: font.cssVar, fontStyle: font.style }}
+                        style={{ fontFamily: font.cssVar, fontStyle: font.style, fontWeight: font.weight }}
                       >
                         {font.name}
                       </button>
@@ -2953,9 +3625,9 @@ export default function ImageEditor() {
                         <button
                           type="button"
                           onClick={() => { locationManuallyEditedRef.current = true; setLocation(""); }}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-[color:var(--cm-surface)] text-[color:var(--cm-ink-2)] text-lg leading-none flex items-center justify-center border border-[color:var(--cm-border)] z-10"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-[color:var(--cm-surface)] text-[color:var(--cm-ink-2)] flex items-center justify-center border border-[color:var(--cm-border)] z-10"
                         >
-                          ×
+                          <X className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </div>
@@ -2972,16 +3644,16 @@ export default function ImageEditor() {
                         <button
                           type="button"
                           onClick={() => { dateManuallyEditedRef.current = true; setDate(""); }}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-[color:var(--cm-surface)] text-[color:var(--cm-ink-2)] text-lg leading-none flex items-center justify-center border border-[color:var(--cm-border)] z-10"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-[color:var(--cm-surface)] text-[color:var(--cm-ink-2)] flex items-center justify-center border border-[color:var(--cm-border)] z-10"
                         >
-                          ×
+                          <X className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </div>
                   </div>
                 </div>
 
-                <div className="hidden lg:block p-3 bg-[color:var(--cm-paper)] rounded-xl border border-dashed border-[color:var(--cm-border)]">
+                <div className={cn("hidden lg:block p-3 bg-[color:var(--cm-paper)] rounded-xl border border-dashed border-[color:var(--cm-border)]", isCropMode && "relative z-50")}>
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 min-w-0">
                       <div className="text-xs font-medium text-[color:var(--cm-ink-2)] whitespace-nowrap">✂️ 照片裁剪</div>
@@ -3023,8 +3695,15 @@ export default function ImageEditor() {
 
           <div className="hidden lg:flex lg:col-span-5 lg:col-start-8 lg:row-start-2">
             <button
-              onClick={downloadImage}
-              className="w-full items-center justify-center gap-2 bg-[color:var(--cm-btn)] hover:bg-[color:var(--cm-btn-hover)] active:bg-[color:var(--cm-btn-active)] text-[color:var(--cm-btn-text)] py-3 rounded-xl transition-colors text-sm font-medium border border-[color:color-mix(in_srgb,var(--cm-brass)_44%,var(--cm-border))] shadow-sm flex"
+              disabled={isCropMode || isRangeMode}
+              onClick={() => {
+                if (isCropMode || isRangeMode) return;
+                downloadImage();
+              }}
+              className={cn(
+                "w-full items-center justify-center gap-2 bg-[color:var(--cm-btn)] hover:bg-[color:var(--cm-btn-hover)] active:bg-[color:var(--cm-btn-active)] text-[color:var(--cm-btn-text)] py-3 rounded-xl transition-colors text-sm font-medium border border-[color:color-mix(in_srgb,var(--cm-brass)_44%,var(--cm-border))] shadow-sm flex",
+                (isCropMode || isRangeMode) && "opacity-60 cursor-not-allowed hover:bg-[color:var(--cm-btn)] active:bg-[color:var(--cm-btn)]"
+              )}
             >
               <Download className="w-4 h-4" />
               导出成品

@@ -4,6 +4,9 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
   },
+  experimental: {
+    optimizePackageImports: ["lucide-react"],
+  },
   outputFileTracingRoot: __dirname,
   allowedDevOrigins: ["192.168.31.250", "localhost"],
   async headers() {
