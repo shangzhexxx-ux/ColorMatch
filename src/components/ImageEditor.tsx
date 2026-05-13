@@ -159,10 +159,8 @@ export default function ImageEditor() {
       const w = rect.width;
       const h = rect.height;
       if (w <= 0 || h <= 0) return (isPortrait ? 13 : 17) * textScale;
-      const stripPx = isPortrait
-        ? Math.round(w * clampStripRatio(portraitStripRatio, portraitStripMin))
-        : Math.round(h * clampStripRatio(landscapeStripRatio, landscapeStripMin));
-      return Math.round(stripPx * 0.188) * textScale;
+      const baseFontPx = isPortrait ? 13 : 17;
+      return baseFontPx * textScale;
     } catch { return (isPortrait ? 13 : 17) * textScale; }
   })();
 
@@ -174,10 +172,8 @@ export default function ImageEditor() {
       const w = rect.width;
       const h = rect.height;
       if (w <= 0 || h <= 0) return (isPortrait ? 13 : 17) * textScale;
-      const stripPx = isPortrait
-        ? Math.round(w * clampStripRatio(portraitStripRatio, portraitStripMin))
-        : Math.round(h * clampStripRatio(landscapeStripRatio, landscapeStripMin));
-      return Math.round(stripPx * 0.188) * textScale;
+      const baseFontPx = isPortrait ? 13 : 17;
+      return baseFontPx * textScale;
     } catch { return (isPortrait ? 13 : 17) * textScale; }
   })();
 
@@ -1459,43 +1455,38 @@ export default function ImageEditor() {
 
   const sampleHexAtClientPoint = (clientX: number, clientY: number) => {
     const img = getActiveImgEl();
-    const card = getActivePreviewCardEl();
-    if (!img || !card) return;
+    if (!img) return;
 
-    const cardRect = card.getBoundingClientRect();
-    const cx = clientX - cardRect.left;
-    const cy = clientY - cardRect.top;
-    if (cx < 0 || cy < 0 || cx >= cardRect.width || cy >= cardRect.height) return;
+    const imgRect = img.getBoundingClientRect();
+    const cx = clientX - imgRect.left;
+    const cy = clientY - imgRect.top;
+
+    if (cx < 0 || cy < 0 || cx >= imgRect.width || cy >= imgRect.height) {
+      return;
+    }
 
     const natW = img.naturalWidth;
     const natH = img.naturalHeight;
-    const cw = cardRect.width;
-    const ch = cardRect.height;
+    if (!natW || !natH) {
+      return;
+    }
+
+    const px = Math.round((cx / imgRect.width) * natW);
+    const py = Math.round((cy / imgRect.height) * natH);
+
+    if (px < 0 || py < 0 || px >= natW || py >= natH) {
+      return;
+    }
 
     const coverCanvas = document.createElement('canvas');
-    coverCanvas.width = cw;
-    coverCanvas.height = ch;
+    coverCanvas.width = natW;
+    coverCanvas.height = natH;
     const coverCtx = coverCanvas.getContext('2d');
     if (!coverCtx) return;
 
-    const natAspect = natW / natH;
-    const cardAspect = cw / ch;
-    let dw: number, dh: number, dx: number, dy: number;
-    if (natAspect >= cardAspect) {
-      dw = cw;
-      dh = cw / natAspect;
-      dx = 0;
-      dy = (ch - dh) / 2;
-    } else {
-      dh = ch;
-      dw = ch * natAspect;
-      dx = (cw - dw) / 2;
-      dy = 0;
-    }
+    coverCtx.drawImage(img, 0, 0);
 
-    coverCtx.drawImage(img, dx, dy, dw, dh);
-
-    const pixel = coverCtx.getImageData(Math.round(cx), Math.round(cy), 1, 1).data;
+    const pixel = coverCtx.getImageData(px, py, 1, 1).data;
     return rgbToHex(pixel[0], pixel[1], pixel[2]);
   };
 
@@ -2285,7 +2276,7 @@ export default function ImageEditor() {
           <>
             {mousePos && (
               <div
-                className="fixed pointer-events-none z-[9999] transform -translate-x-1/2 -translate-y-[130%] lg:-translate-y-1/2"
+                className="fixed pointer-events-none z-[9999] transform -translate-x-1/2 -translate-y-1/2"
                 style={{ left: `${mousePos.x}px`, top: `${mousePos.y}px` }}
               >
                 <div className="relative">
@@ -2299,33 +2290,34 @@ export default function ImageEditor() {
                 </div>
               </div>
             )}
-            <div className="fixed left-1/2 -translate-x-1/2 bottom-[calc(env(safe-area-inset-bottom)+94px)] z-[9999] pointer-events-none lg:hidden">
-              <div className="bg-[color:var(--cm-brass)] text-white px-4 py-2 rounded-xl text-xs font-medium shadow-lg flex items-center gap-2">
-                <Pipette className="w-4 h-4" />
-                {isPickerMode === "bg" ? "触摸拾取背景色" : "触摸拾取文字色"}
-                <span className="font-mono bg-white/20 px-1.5 py-0.5 rounded">{hoverColor.toUpperCase()}</span>
-              </div>
-            </div>
           </>,
           document.body
         )
       : null;
 
   const modeHintsPortal =
-    typeof document !== "undefined" && (isCropMode || isRangeMode)
+    typeof document !== "undefined" && (isCropMode || isRangeMode || isPickerMode)
       ? createPortal(
-          <div className="fixed left-1/2 -translate-x-1/2 bottom-[calc(env(safe-area-inset-bottom)+94px)] z-[9999] pointer-events-none lg:hidden">
-            {isCropMode ? (
-            <div className="bg-[color:var(--cm-brass)] text-white px-4 py-2 rounded-xl text-xs font-medium shadow-lg flex items-center gap-2">
-              <Scissors className="w-4 h-4" />
-              裁剪模式 · 拖动调整 · 点完成退出
+          <div className="fixed inset-x-0 top-[env(safe-area-inset-top)] z-[9999] pointer-events-none lg:hidden flex justify-center pt-1">
+            <div className="bg-white/90 backdrop-blur-md text-gray-800 px-3 py-1.5 rounded-full text-xs font-medium shadow-lg flex items-center gap-2 border border-gray-200/50">
+              {isCropMode ? (
+                <>
+                  <Scissors className="w-3.5 h-3.5 text-amber-600" />
+                  <span>裁剪模式</span>
+                </>
+              ) : isRangeMode ? (
+                <>
+                  <Sliders className="w-3.5 h-3.5 text-amber-600" />
+                  <span>色彩范围</span>
+                </>
+              ) : (
+                <>
+                  <Pipette className="w-3.5 h-3.5 text-amber-600" />
+                  <span>{isPickerMode === "bg" ? "拾取背景色" : "拾取文字色"}</span>
+                  <span className="font-mono bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full text-[10px] font-semibold">{hoverColor.toUpperCase()}</span>
+                </>
+              )}
             </div>
-            ) : (
-            <div className="bg-[color:var(--cm-brass)] text-white px-4 py-2 rounded-xl text-xs font-medium shadow-lg flex items-center gap-2">
-              <Sliders className="w-4 h-4" />
-              色彩范围 · 拖动分割线 · 点完成退出
-            </div>
-            )}
           </div>,
           document.body
         )
@@ -2366,6 +2358,7 @@ export default function ImageEditor() {
                     style={{ WebkitOverflowScrolling: "touch" }}
                   >
                     <div className="px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+104px)] flex flex-col items-center gap-2">
+                      <div className="w-[92vw] max-w-[420px] h-6" /> {/* 固定占位空间 */}
                       <div
                         ref={mobilePreviewRef}
                         className="relative w-[92vw] max-w-[420px] sm:max-w-[430px] mx-auto flex justify-center bg-[color:var(--cm-surface)] p-2 sm:p-3 rounded-2xl shadow-sm border border-[color:var(--cm-border)] items-center"
@@ -2624,19 +2617,22 @@ export default function ImageEditor() {
                         ref={mobileControlsRef}
                         className="bg-[color:var(--cm-surface)] w-[92vw] max-w-[420px] sm:max-w-[430px] mt-0.5 rounded-2xl shadow-sm border border-[color:var(--cm-border)] p-4 space-y-3"
                       >
-                        <div className="flex bg-[color:var(--cm-surface-2)] rounded-xl p-0.5 gap-1">
+                        <div className="flex rounded-xl p-0.5 gap-1">
                           <button
                             onClick={() => {
                               cropModeWantedRef.current = false;
                               setIsCropMode(false);
                               setMobileTab("presets");
                             }}
-                            className={cn(
-                              "flex-1 py-2 rounded-lg text-sm font-medium transition-all",
-                              mobileTab === "presets" ? "bg-[color:var(--cm-surface)] text-[color:var(--cm-ink)] shadow-sm" : "text-[color:var(--cm-ink-2)]"
-                            )}
+                            className="flex-1 py-2 rounded-lg text-sm font-medium transition-all text-[color:var(--cm-ink-2)] relative"
                           >
-                            配色
+                            <span className={mobileTab === "presets" ? "text-[color:var(--cm-ink)]" : ""}>配色</span>
+                            <div
+                              className={cn(
+                                "absolute bottom-0.5 left-1/2 -translate-x-1/2 h-0.5 rounded-full bg-[color:var(--cm-brass)] transition-all duration-200",
+                                mobileTab === "presets" ? "w-6 opacity-100" : "w-0 opacity-0"
+                              )}
+                            />
                           </button>
                           <button
                             onClick={() => {
@@ -2644,12 +2640,15 @@ export default function ImageEditor() {
                               setIsCropMode(false);
                               setMobileTab("colors");
                             }}
-                            className={cn(
-                              "flex-1 py-2 rounded-lg text-sm font-medium transition-all",
-                              mobileTab === "colors" ? "bg-[color:var(--cm-surface)] text-[color:var(--cm-ink)] shadow-sm" : "text-[color:var(--cm-ink-2)]"
-                            )}
+                            className="flex-1 py-2 rounded-lg text-sm font-medium transition-all text-[color:var(--cm-ink-2)] relative"
                           >
-                            颜色
+                            <span className={mobileTab === "colors" ? "text-[color:var(--cm-ink)]" : ""}>颜色</span>
+                            <div
+                              className={cn(
+                                "absolute bottom-0.5 left-1/2 -translate-x-1/2 h-0.5 rounded-full bg-[color:var(--cm-brass)] transition-all duration-200",
+                                mobileTab === "colors" ? "w-6 opacity-100" : "w-0 opacity-0"
+                              )}
+                            />
                           </button>
                           <button
                             onClick={() => {
@@ -2657,12 +2656,15 @@ export default function ImageEditor() {
                               setIsCropMode(false);
                               setMobileTab("text");
                             }}
-                            className={cn(
-                              "flex-1 py-2 rounded-lg text-sm font-medium transition-all",
-                              mobileTab === "text" ? "bg-[color:var(--cm-surface)] text-[color:var(--cm-ink)] shadow-sm" : "text-[color:var(--cm-ink-2)]"
-                            )}
+                            className="flex-1 py-2 rounded-lg text-sm font-medium transition-all text-[color:var(--cm-ink-2)] relative"
                           >
-                            文字
+                            <span className={mobileTab === "text" ? "text-[color:var(--cm-ink)]" : ""}>文字</span>
+                            <div
+                              className={cn(
+                                "absolute bottom-0.5 left-1/2 -translate-x-1/2 h-0.5 rounded-full bg-[color:var(--cm-brass)] transition-all duration-200",
+                                mobileTab === "text" ? "w-6 opacity-100" : "w-0 opacity-0"
+                              )}
+                            />
                           </button>
                           <button
                             onClick={() => {
@@ -2671,12 +2673,15 @@ export default function ImageEditor() {
                               cropModeWantedRef.current = true;
                               setIsCropMode(true);
                             }}
-                            className={cn(
-                              "flex-1 py-2 rounded-lg text-sm font-medium transition-all",
-                              mobileTab === "crop" ? "bg-[color:var(--cm-surface)] text-[color:var(--cm-ink)] shadow-sm" : "text-[color:var(--cm-ink-2)]"
-                            )}
+                            className="flex-1 py-2 rounded-lg text-sm font-medium transition-all text-[color:var(--cm-ink-2)] relative"
                           >
-                            裁剪
+                            <span className={mobileTab === "crop" ? "text-[color:var(--cm-ink)]" : ""}>裁剪</span>
+                            <div
+                              className={cn(
+                                "absolute bottom-0.5 left-1/2 -translate-x-1/2 h-0.5 rounded-full bg-[color:var(--cm-brass)] transition-all duration-200",
+                                mobileTab === "crop" ? "w-6 opacity-100" : "w-0 opacity-0"
+                              )}
+                            />
                           </button>
                         </div>
 
@@ -3089,17 +3094,23 @@ export default function ImageEditor() {
                         }
                         ref={desktopPreviewCardRef}
                       >
-                      {(isCropMode || isRangeMode) && (
-                        <div className="hidden lg:flex items-center gap-2 px-4 py-2 bg-[color:var(--cm-brass)] text-white rounded-xl text-xs font-medium shadow-lg absolute top-3 left-1/2 -translate-x-1/2 z-30">
+                      {(isCropMode || isRangeMode || isPickerMode) && (
+                        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-30 hidden lg:flex items-center gap-2 bg-white/90 backdrop-blur-md text-gray-800 px-3 py-1.5 rounded-full text-xs font-medium shadow-lg border border-gray-200/50">
                           {isCropMode ? (
                             <>
-                              <Scissors className="w-4 h-4" />
-                              <span>裁剪模式 · 拖动调整 · 点完成退出</span>
+                              <Scissors className="w-3.5 h-3.5 text-amber-600" />
+                              <span>裁剪模式</span>
+                            </>
+                          ) : isRangeMode ? (
+                            <>
+                              <Sliders className="w-3.5 h-3.5 text-amber-600" />
+                              <span>色彩范围</span>
                             </>
                           ) : (
                             <>
-                              <Sliders className="w-4 h-4" />
-                              <span>色彩范围 · 拖动分割线 · 点完成退出</span>
+                              <Pipette className="w-3.5 h-3.5 text-amber-600" />
+                              <span>{isPickerMode === "bg" ? "拾取背景色" : "拾取文字色"}</span>
+                              <span className="font-mono bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full text-[10px] font-semibold">{hoverColor.toUpperCase()}</span>
                             </>
                           )}
                         </div>
@@ -3341,9 +3352,6 @@ export default function ImageEditor() {
 
           <div className="hidden lg:flex lg:col-span-5 lg:col-start-8 lg:row-start-1 flex flex-col gap-6 h-full">
             <div className="bg-[color:var(--cm-surface)] p-4 lg:p-4 rounded-2xl shadow-sm border border-[color:var(--cm-border)] flex flex-col gap-4 lg:gap-4 flex-1 relative">
-              {(isCropMode || isRangeMode) && (
-                <div className="absolute inset-0 z-40 rounded-2xl cursor-not-allowed" />
-              )}
               <label className="cm-upload-btn">
                 <span className="inline-flex items-center justify-center gap-2">
                   <Upload className="w-4 h-4" />
