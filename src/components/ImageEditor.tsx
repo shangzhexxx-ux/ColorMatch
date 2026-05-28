@@ -1277,42 +1277,63 @@ export default function ImageEditor() {
             if (exifData) {
               console.log("[ColorMatch] All EXIF data:", JSON.stringify(exifData, null, 2));
               
-              const gpsDate = exifData.GPSDateStamp || exifData.GPSDate;
-              const gpsTime = exifData.GPSTimeStamp;
+              const dateTimeOriginal = exifData.DateTimeOriginal || exifData.dateTimeOriginal || exifData.CreateDate || exifData.CreateDate || exifData.DateTime;
               
-              if (gpsDate) {
-                const dateStr = gpsDate.replace(/:/g, "-");
-                let timeStr = "";
-                if (gpsTime) {
-                  const timeParts = gpsTime.match(/(\d+):(\d+):(\d+)/);
-                  if (timeParts) {
-                    let hours = parseInt(timeParts[1], 10) + 8;
-                    const minutes = parseInt(timeParts[2], 10);
-                    const ampm = hours >= 12 ? "pm" : "am";
-                    hours = hours % 12 || 12;
-                    timeStr = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}${ampm}`;
-                  }
-                }
-                const date = new Date(dateStr);
-                if (!isNaN(date.getTime())) {
+              if (dateTimeOriginal) {
+                console.log("[ColorMatch] Found DateTimeOriginal:", dateTimeOriginal);
+                const dt = new Date(dateTimeOriginal);
+                if (!isNaN(dt.getTime())) {
                   const monthNames = [
                     "January", "February", "March", "April", "May", "June",
                     "July", "August", "September", "October", "November", "December"
                   ];
-                  const month = monthNames[date.getMonth()];
-                  const day = date.getDate();
-                  let finalTimeStr = "";
-                  if (timeStr) {
-                    finalTimeStr = " - " + timeStr;
-                  }
-                  const fullDateStr = `${month} ${day}${finalTimeStr}`;
-                  console.log("[ColorMatch] Setting date from GPS:", fullDateStr);
-                  console.log("[ColorMatch] dateRequestId check:", { current: dateRequestIdRef.current, expected: dateRequestId, match: dateRequestIdRef.current === dateRequestId });
-                  console.log("[ColorMatch] dateManuallyEditedRef:", dateManuallyEditedRef.current);
+                  const month = monthNames[dt.getMonth()];
+                  const day = dt.getDate();
+                  const hours = dt.getHours();
+                  const ampm = hours >= 12 ? "pm" : "am";
+                  const hour12 = hours % 12 || 12;
+                  const minutes = dt.getMinutes();
+                  const timeStr = `${String(hour12).padStart(2, "0")}:${String(minutes).padStart(2, "0")}${ampm}`;
+                  const fullDateStr = `${month} ${day} - ${timeStr}`;
+                  console.log("[ColorMatch] Setting date from EXIF:", fullDateStr);
                   if (dateRequestIdRef.current === dateRequestId && !dateManuallyEditedRef.current) {
                     setDate(fullDateStr);
-                  } else {
-                    console.log("[ColorMatch] Date NOT set, conditions not met");
+                  }
+                }
+              } else {
+                const gpsDate = exifData.GPSDateStamp || exifData.GPSDate;
+                const gpsTime = exifData.GPSTimeStamp;
+                
+                if (gpsDate) {
+                  const dateStr = gpsDate.replace(/:/g, "-");
+                  let timeStr = "";
+                  if (gpsTime) {
+                    const timeParts = gpsTime.match(/(\d+):(\d+):(\d+)/);
+                    if (timeParts) {
+                      let hours = parseInt(timeParts[1], 10) + 8;
+                      const minutes = parseInt(timeParts[2], 10);
+                      const ampm = hours >= 12 ? "pm" : "am";
+                      hours = hours % 12 || 12;
+                      timeStr = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}${ampm}`;
+                    }
+                  }
+                  const date = new Date(dateStr);
+                  if (!isNaN(date.getTime())) {
+                    const monthNames = [
+                      "January", "February", "March", "April", "May", "June",
+                      "July", "August", "September", "October", "November", "December"
+                    ];
+                    const month = monthNames[date.getMonth()];
+                    const day = date.getDate();
+                    let finalTimeStr = "";
+                    if (timeStr) {
+                      finalTimeStr = " - " + timeStr;
+                    }
+                    const fullDateStr = `${month} ${day}${finalTimeStr}`;
+                    console.log("[ColorMatch] Setting date from GPS:", fullDateStr);
+                    if (dateRequestIdRef.current === dateRequestId && !dateManuallyEditedRef.current) {
+                      setDate(fullDateStr);
+                    }
                   }
                 }
               }
