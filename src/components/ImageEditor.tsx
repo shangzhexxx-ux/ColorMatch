@@ -3436,7 +3436,7 @@ export default function ImageEditor() {
                         key={`${scheme.name}-${scheme.bg}-${scheme.text}`}
                         onClick={() => handleSelectScheme(schemeIndex)}
                         className={cn(
-                          "flex flex-col items-center gap-1 p-1 rounded-xl transition-all shrink-0 outline-none focus:outline-none focus-visible:outline-none",
+                          "flex flex-col items-center gap-1 p-1 rounded-xl transition-all min-w-[52px] shrink-0 outline-none focus:outline-none focus-visible:outline-none",
                           isSelected
                             ? "bg-[color:color-mix(in_srgb,var(--cm-brass)_12%,transparent)]"
                             : "bg-[color:var(--cm-surface)] hover:bg-[color:color-mix(in_srgb,var(--cm-brass)_8%,transparent)] active:scale-[0.99]"
