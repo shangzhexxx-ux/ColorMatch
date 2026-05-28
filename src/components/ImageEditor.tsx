@@ -975,6 +975,7 @@ export default function ImageEditor() {
   const textColor = schemes[selectedSchemeIndex] ? schemes[selectedSchemeIndex].text : "#171717";
 
   const reverseGeocodeCity = async (lat: number, lon: number) => {
+    console.log("[ColorMatch] reverseGeocodeCity called:", lat, lon);
     const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
     const timer = setTimeout(() => {
       try {
@@ -986,15 +987,23 @@ export default function ImageEditor() {
       const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${encodeURIComponent(
         String(lat)
       )}&longitude=${encodeURIComponent(String(lon))}&localityLanguage=en`;
+      console.log("[ColorMatch] API URL:", url);
 
       const res = await fetch(url, controller ? { signal: controller.signal } : undefined);
-      if (!res.ok) return null;
+      if (!res.ok) {
+        console.log("[ColorMatch] API error:", res.status);
+        return null;
+      }
       const data: any = await res.json();
+      console.log("[ColorMatch] API response:", data);
       const pick = (v: any) => (typeof v === "string" && v.trim() ? v.trim() : null);
       const city = pick(data && data.city);
       const locality = pick(data && data.locality);
-      return city || locality;
-    } catch {
+      const result = city || locality;
+      console.log("[ColorMatch] City result:", result);
+      return result;
+    } catch (e) {
+      console.log("[ColorMatch] API exception:", e);
       return null;
     } finally {
       clearTimeout(timer);
@@ -1002,9 +1011,13 @@ export default function ImageEditor() {
   };
 
   const getDeviceLocationCity = async () => {
+    console.log("[ColorMatch] getDeviceLocationCity called");
     if (typeof navigator === "undefined") return null;
     const geo: any = (navigator as any).geolocation;
-    if (!geo || typeof geo.getCurrentPosition !== "function") return null;
+    if (!geo || typeof geo.getCurrentPosition !== "function") {
+      console.log("[ColorMatch] Geolocation not available");
+      return null;
+    }
 
     const pos = await new Promise<{ latitude: number; longitude: number } | null>((resolve) => {
       let done = false;
@@ -1232,12 +1245,14 @@ export default function ImageEditor() {
       }
 
       const fallbackToDevice = () => {
+        console.log("[ColorMatch] fallbackToDevice called");
         void (async () => {
           if (locationRequestIdRef.current !== locationRequestId) return;
           if (locationManuallyEditedRef.current) return;
           const current = typeof locationValueRef.current === "string" ? locationValueRef.current.trim() : "";
           if (current) return;
           const city = await getDeviceLocationCity();
+          console.log("[ColorMatch] Device location city:", city);
           if (locationRequestIdRef.current !== locationRequestId) return;
           if (locationManuallyEditedRef.current) return;
           if (city) setLocation(city);
@@ -1251,98 +1266,118 @@ export default function ImageEditor() {
       void (async () => {
         try {
           const { default: EXIF } = await import("exif-js");
-          EXIF.getData(file as any, function (this: any) {
-          const dateTime =
-            EXIF.getTag(this, "DateTimeOriginal") ||
-            EXIF.getTag(this, "DateTimeDigitized") ||
-            EXIF.getTag(this, "DateTime");
-          if (typeof dateTime === "string" && dateTime.includes(" ")) {
-            try {
-              const parts = dateTime.split(" ");
-              const dateParts = parts[0] ? parts[0].split(":") : null;
-              const timeParts = parts[1] ? parts[1].split(":") : null;
-              const monthIdx = dateParts && dateParts[1] ? parseInt(dateParts[1], 10) - 1 : NaN;
-              const hour = timeParts && timeParts[0] ? parseInt(timeParts[0], 10) : NaN;
-              const minute = timeParts && timeParts[1] ? parseInt(timeParts[1], 10) : NaN;
+          
+          const processExif = (data: any) => {
+            const dateTime =
+              EXIF.getTag(data, "DateTimeOriginal") ||
+              EXIF.getTag(data, "DateTimeDigitized") ||
+              EXIF.getTag(data, "DateTime");
+            if (typeof dateTime === "string" && dateTime.includes(" ")) {
+              try {
+                const parts = dateTime.split(" ");
+                const dateParts = parts[0] ? parts[0].split(":") : null;
+                const timeParts = parts[1] ? parts[1].split(":") : null;
+                const monthIdx = dateParts && dateParts[1] ? parseInt(dateParts[1], 10) - 1 : NaN;
+                const hour = timeParts && timeParts[0] ? parseInt(timeParts[0], 10) : NaN;
+                const minute = timeParts && timeParts[1] ? parseInt(timeParts[1], 10) : NaN;
 
-              if (
-                !Number.isNaN(monthIdx) &&
-                monthIdx >= 0 &&
-                monthIdx <= 11 &&
-                !Number.isNaN(hour) &&
-                !Number.isNaN(minute)
-              ) {
-                const monthNames = [
-                  "January",
-                  "February",
-                  "March",
-                  "April",
-                  "May",
-                  "June",
-                  "July",
-                  "August",
-                  "September",
-                  "October",
-                  "November",
-                  "December",
-                ];
-                const month = monthNames[monthIdx];
-                const ampm = hour >= 12 ? "pm" : "am";
-                const hour12 = hour % 12 || 12;
-                const timeStr = `${String(hour12).padStart(2, "0")}:${String(minute).padStart(2, "0")}${ampm}`;
-                if (dateRequestIdRef.current === dateRequestId && !dateManuallyEditedRef.current) {
-                  setDate(`${month} - ${timeStr}`);
+                if (
+                  !Number.isNaN(monthIdx) &&
+                  monthIdx >= 0 &&
+                  monthIdx <= 11 &&
+                  !Number.isNaN(hour) &&
+                  !Number.isNaN(minute)
+                ) {
+                  const monthNames = [
+                    "January",
+                    "February",
+                    "March",
+                    "April",
+                    "May",
+                    "June",
+                    "July",
+                    "August",
+                    "September",
+                    "October",
+                    "November",
+                    "December",
+                  ];
+                  const month = monthNames[monthIdx];
+                  const ampm = hour >= 12 ? "pm" : "am";
+                  const hour12 = hour % 12 || 12;
+                  const timeStr = `${String(hour12).padStart(2, "0")}:${String(minute).padStart(2, "0")}${ampm}`;
+                  if (dateRequestIdRef.current === dateRequestId && !dateManuallyEditedRef.current) {
+                    setDate(`${month} - ${timeStr}`);
+                  }
                 }
-              }
-            } catch {}
-          }
-
-          const gpsLat = EXIF.getTag(this, "GPSLatitude");
-          const gpsLatRef = EXIF.getTag(this, "GPSLatitudeRef");
-          const gpsLon = EXIF.getTag(this, "GPSLongitude");
-          const gpsLonRef = EXIF.getTag(this, "GPSLongitudeRef");
-
-          const toNumber = (value: any) => {
-            if (value == null) return null;
-            if (typeof value === "number") return value;
-            if (
-              typeof value === "object" &&
-              typeof value.numerator === "number" &&
-              typeof value.denominator === "number" &&
-              value.denominator !== 0
-            ) {
-              return value.numerator / value.denominator;
+              } catch {}
             }
-            return null;
+
+            const gpsLat = EXIF.getTag(data, "GPSLatitude");
+            const gpsLatRef = EXIF.getTag(data, "GPSLatitudeRef");
+            const gpsLon = EXIF.getTag(data, "GPSLongitude");
+            const gpsLonRef = EXIF.getTag(data, "GPSLongitudeRef");
+            
+            console.log("[ColorMatch] GPS Debug:", { gpsLat, gpsLatRef, gpsLon, gpsLonRef });
+
+            const toNumber = (value: any) => {
+              if (value == null) return null;
+              if (typeof value === "number") return value;
+              if (
+                typeof value === "object" &&
+                typeof value.numerator === "number" &&
+                typeof value.denominator === "number" &&
+                value.denominator !== 0
+              ) {
+                return value.numerator / value.denominator;
+              }
+              return null;
+            };
+
+            const dmsToDecimal = (dms: any[], ref: string | undefined) => {
+              if (!Array.isArray(dms) || dms.length < 3) return null;
+              const d = toNumber(dms[0]);
+              const m = toNumber(dms[1]);
+              const s = toNumber(dms[2]);
+              if (d == null || m == null || s == null) return null;
+              let dec = d + m / 60 + s / 3600;
+              if (ref === "S" || ref === "W") dec = -dec;
+              return dec;
+            };
+
+            const lat = dmsToDecimal(gpsLat, gpsLatRef);
+            const lon = dmsToDecimal(gpsLon, gpsLonRef);
+
+            if (lat != null && lon != null) {
+              void (async () => {
+                const city = await reverseGeocodeCity(lat, lon);
+                if (locationRequestIdRef.current !== locationRequestId) return;
+                if (locationManuallyEditedRef.current) return;
+                if (city) setLocation(city);
+              })();
+            } else {
+              fallbackToDevice();
+            }
+
+            resetInputLater();
           };
 
-          const dmsToDecimal = (dms: any[], ref: string | undefined) => {
-            if (!Array.isArray(dms) || dms.length < 3) return null;
-            const d = toNumber(dms[0]);
-            const m = toNumber(dms[1]);
-            const s = toNumber(dms[2]);
-            if (d == null || m == null || s == null) return null;
-            let dec = d + m / 60 + s / 3600;
-            if (ref === "S" || ref === "W") dec = -dec;
-            return dec;
-          };
-
-          const lat = dmsToDecimal(gpsLat, gpsLatRef);
-          const lon = dmsToDecimal(gpsLon, gpsLonRef);
-
-          if (lat != null && lon != null) {
-            void (async () => {
-              const city = await reverseGeocodeCity(lat, lon);
-              if (locationRequestIdRef.current !== locationRequestId) return;
-              if (locationManuallyEditedRef.current) return;
-              if (city) setLocation(city);
-            })();
-          } else {
-            fallbackToDevice();
+          try {
+            EXIF.getData(file as any, processExif);
+          } catch {
+            const blobUrl = URL.createObjectURL(file);
+            const img = new Image();
+            img.onload = () => {
+              EXIF.getData(img, processExif);
+              URL.revokeObjectURL(blobUrl);
+            };
+            img.onerror = () => {
+              fallbackToDevice();
+              resetInputLater();
+              URL.revokeObjectURL(blobUrl);
+            };
+            img.src = blobUrl;
           }
-
-          resetInputLater();
-        });
         } catch {
           fallbackToDevice();
           resetInputLater();
@@ -1453,6 +1488,19 @@ export default function ImageEditor() {
     return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
   };
 
+  const normalizeColor = (color: string): string => {
+    if (!color) return "#171717";
+    if (color.startsWith("#")) return color;
+    const match = color.match(/rgb\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/);
+    if (match) {
+      const r = parseInt(match[1], 10);
+      const g = parseInt(match[2], 10);
+      const b = parseInt(match[3], 10);
+      return rgbToHex(r, g, b);
+    }
+    return color.startsWith("#") ? color : `#${color}`;
+  };
+
   const sampleHexAtClientPoint = (clientX: number, clientY: number) => {
     const img = getActiveImgEl();
     if (!img) return;
@@ -1552,7 +1600,7 @@ export default function ImageEditor() {
         targetS = Math.min(s, 0.3);
       }
       const [tr, tg, tb] = hsvToRgb(h, targetS, targetV);
-      return `rgb(${tr}, ${tg}, ${tb})`;
+      return rgbToHex(tr, tg, tb);
     } else {
       let targetV = 0.99;
       let targetS = Math.min(s, 0.15);
@@ -1564,7 +1612,7 @@ export default function ImageEditor() {
         targetS = Math.min(s, 0.1);
       }
       const [tr, tg, tb] = hsvToRgb(h, targetS, targetV);
-      return `rgb(${tr}, ${tg}, ${tb})`;
+      return rgbToHex(tr, tg, tb);
     }
   };
 
@@ -1957,6 +2005,10 @@ export default function ImageEditor() {
 
       setSchemes(newSchemes);
       setSelectedSchemeIndex(0);
+      if (newSchemes[0]) {
+        setCustomBgColor(newSchemes[0].bg);
+        setCustomTextColor(newSchemes[0].text);
+      }
     } catch (error) {
       console.error("Color extraction failed:", error);
     } finally {
@@ -2749,7 +2801,7 @@ export default function ImageEditor() {
                                   <input
                                     type="color"
                                     value={customBgColor || "#e5e5e5"}
-                                    onChange={(e) => setCustomBgColor(e.target.value)}
+                                    onChange={(e) => setCustomBgColor(normalizeColor(e.target.value))}
                                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                                   />
                                 </div>
@@ -2775,7 +2827,7 @@ export default function ImageEditor() {
                               <input
                                 type="text"
                                 value={customBgColor}
-                                onChange={(e) => setCustomBgColor(e.target.value)}
+                                onChange={(e) => setCustomBgColor(normalizeColor(e.target.value))}
                                 placeholder="#000000"
                                 onFocus={handleMobileFieldFocus}
                                 onBlur={handleMobileFieldBlur}
@@ -2800,7 +2852,7 @@ export default function ImageEditor() {
                                   <input
                                     type="color"
                                     value={customTextColor || "#171717"}
-                                    onChange={(e) => setCustomTextColor(e.target.value)}
+                                    onChange={(e) => setCustomTextColor(normalizeColor(e.target.value))}
                                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                                   />
                                 </div>
@@ -2826,7 +2878,7 @@ export default function ImageEditor() {
                               <input
                                 type="text"
                                 value={customTextColor}
-                                onChange={(e) => setCustomTextColor(e.target.value)}
+                                onChange={(e) => setCustomTextColor(normalizeColor(e.target.value))}
                                 placeholder="#000000"
                                 onFocus={handleMobileFieldFocus}
                                 onBlur={handleMobileFieldBlur}
@@ -3439,7 +3491,7 @@ export default function ImageEditor() {
                             <input
                               type="color"
                               value={customBgColor || '#e5e5e5'}
-                              onChange={(e) => setCustomBgColor(e.target.value)}
+                              onChange={(e) => setCustomBgColor(normalizeColor(e.target.value))}
                               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                             />
                             <div 
@@ -3462,7 +3514,7 @@ export default function ImageEditor() {
                         <input
                           type="text"
                           value={customBgColor}
-                          onChange={(e) => setCustomBgColor(e.target.value)}
+                          onChange={(e) => setCustomBgColor(normalizeColor(e.target.value))}
                           placeholder="#000000"
                           className="flex-1 h-10 px-3 bg-[color:var(--cm-surface)] border-2 border-[color:var(--cm-border-strong)] rounded-lg text-sm font-mono uppercase appearance-none shadow-none focus:outline-none focus:!border-transparent focus:ring-2 focus:ring-[color:var(--cm-brass)]"
                           maxLength={7}
@@ -3482,7 +3534,7 @@ export default function ImageEditor() {
                             <input
                               type="color"
                               value={customTextColor || '#171717'}
-                              onChange={(e) => setCustomTextColor(e.target.value)}
+                              onChange={(e) => setCustomTextColor(normalizeColor(e.target.value))}
                               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                             />
                             <div 
@@ -3505,7 +3557,7 @@ export default function ImageEditor() {
                         <input
                           type="text"
                           value={customTextColor}
-                          onChange={(e) => setCustomTextColor(e.target.value)}
+                          onChange={(e) => setCustomTextColor(normalizeColor(e.target.value))}
                           placeholder="#000000"
                           className="flex-1 h-10 px-3 bg-[color:var(--cm-surface)] border-2 border-[color:var(--cm-border-strong)] rounded-lg text-sm font-mono uppercase appearance-none shadow-none focus:outline-none focus:!border-transparent focus:ring-2 focus:ring-[color:var(--cm-brass)]"
                           maxLength={7}
