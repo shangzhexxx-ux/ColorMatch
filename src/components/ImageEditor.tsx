@@ -1325,6 +1325,7 @@ export default function ImageEditor() {
               } else {
                 fallbackToDevice();
               }
+            }
             } catch (exifError) {
               console.log("[ColorMatch] EXIF parse error:", exifError);
               fallbackToDevice();
