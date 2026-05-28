@@ -1290,67 +1290,30 @@ export default function ImageEditor() {
                 exifData.CreationDate || exifData.creationDate ||
                 exifData.MediaCreateDate || exifData.mediaCreateDate;
               
-              if (dateTimeOriginal) {
-                console.log("[ColorMatch] Found DateTimeOriginal:", dateTimeOriginal);
-                const dt = new Date(dateTimeOriginal);
-                if (!isNaN(dt.getTime())) {
-                  const monthNames = [
-                    "January", "February", "March", "April", "May", "June",
-                    "July", "August", "September", "October", "November", "December"
-                  ];
-                  const month = monthNames[dt.getMonth()];
-                  const day = dt.getDate();
-                  const hours = dt.getHours();
-                  const ampm = hours >= 12 ? "pm" : "am";
-                  const hour12 = hours % 12 || 12;
-                  const minutes = dt.getMinutes();
-                  const timeStr = `${String(hour12).padStart(2, "0")}:${String(minutes).padStart(2, "0")}${ampm}`;
-                  const fullDateStr = `${month} ${day} - ${timeStr}`;
-                  console.log("[ColorMatch] Setting date from EXIF:", fullDateStr);
-                  if (dateRequestIdRef.current === dateRequestId && !dateManuallyEditedRef.current) {
-                    setDate(fullDateStr);
-                  }
-                }
-              } else {
-                const gpsDate = exifData.GPSDateStamp || exifData.GPSDate;
-                const gpsTime = exifData.GPSTimeStamp;
-                
-                if (gpsDate) {
-                  const dateStr = gpsDate.replace(/:/g, "-");
-                  let timeStr = "";
-                  if (gpsTime) {
-                    const timeParts = gpsTime.match(/(\d+):(\d+):(\d+)/);
-                    if (timeParts) {
-                      let hours = parseInt(timeParts[1], 10) + 8;
-                      const minutes = parseInt(timeParts[2], 10);
-                      const ampm = hours >= 12 ? "pm" : "am";
-                      hours = hours % 12 || 12;
-                      timeStr = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}${ampm}`;
-                    }
-                  }
-                  const date = new Date(dateStr);
-                  if (!isNaN(date.getTime())) {
-                    const monthNames = [
-                      "January", "February", "March", "April", "May", "June",
-                      "July", "August", "September", "October", "November", "December"
-                    ];
-                    const month = monthNames[date.getMonth()];
-                    const day = date.getDate();
-                    let finalTimeStr = "";
-                    if (timeStr) {
-                      finalTimeStr = " - " + timeStr;
-                    }
-                    const fullDateStr = `${month} ${day}${finalTimeStr}`;
-                    console.log("[ColorMatch] Setting date from GPS:", fullDateStr);
-                    if (dateRequestIdRef.current === dateRequestId && !dateManuallyEditedRef.current) {
-                      setDate(fullDateStr);
-                    }
-                  }
+              const fileDate = new Date(file.lastModified);
+              const useDate = dateTimeOriginal ? new Date(dateTimeOriginal) : fileDate;
+              
+              if (!isNaN(useDate.getTime())) {
+                const monthNames = [
+                  "January", "February", "March", "April", "May", "June",
+                  "July", "August", "September", "October", "November", "December"
+                ];
+                const month = monthNames[useDate.getMonth()];
+                const day = useDate.getDate();
+                const hours = useDate.getHours();
+                const ampm = hours >= 12 ? "pm" : "am";
+                const hour12 = hours % 12 || 12;
+                const minutes = useDate.getMinutes();
+                const timeStr = `${String(hour12).padStart(2, "0")}:${String(minutes).padStart(2, "0")}${ampm}`;
+                const fullDateStr = `${month} ${day} - ${timeStr}`;
+                console.log("[ColorMatch] Setting date from:", dateTimeOriginal ? "EXIF" : "file", fullDateStr);
+                if (dateRequestIdRef.current === dateRequestId && !dateManuallyEditedRef.current) {
+                  setDate(fullDateStr);
                 }
               }
               
-              const lat = exifData.latitude || exifData.lat || exifData.GPSLatitude;
-              const lon = exifData.longitude || exifData.lon || exifData.GPSLongitude;
+              const lat = exifData.latitude || exifData.lat;
+              const lon = exifData.longitude || exifData.lon;
               
               console.log("[ColorMatch] GPS:", { lat, lon });
               
@@ -1362,42 +1325,38 @@ export default function ImageEditor() {
               } else {
                 fallbackToDevice();
               }
-            } else {
-              console.log("[ColorMatch] No EXIF data found");
+            } catch (exifError) {
+              console.log("[ColorMatch] EXIF parse error:", exifError);
               fallbackToDevice();
             }
-          } catch (exifError) {
-            console.log("[ColorMatch] EXIF parse error:", exifError);
+          } catch {
+            console.log("[ColorMatch] exifr import failed");
             fallbackToDevice();
           }
-        } catch {
-          console.log("[ColorMatch] exifr import failed");
-          fallbackToDevice();
-        }
-        
-        resetInputLater();
-      })();
-    };
-
-    const file = inputEl.files && inputEl.files[0] ? inputEl.files[0] : undefined;
-    if (file) {
-      processFile(file);
-      return;
-    }
-
-    let attempts = 0;
-    const tryReadLater = () => {
-      const f = inputEl.files && inputEl.files[0] ? inputEl.files[0] : undefined;
-      if (f) {
-        processFile(f);
+          
+          resetInputLater();
+        })();
+      };
+      
+      const file = inputEl.files && inputEl.files[0] ? inputEl.files[0] : undefined;
+      if (file) {
+        processFile(file);
         return;
       }
-      attempts += 1;
-      if (attempts >= 12) return;
-      setTimeout(tryReadLater, 50);
+
+      let attempts = 0;
+      const tryReadLater = () => {
+        const f = inputEl.files && inputEl.files[0] ? inputEl.files[0] : undefined;
+        if (f) {
+          processFile(f);
+          return;
+        }
+        attempts += 1;
+        if (attempts >= 12) return;
+        setTimeout(tryReadLater, 50);
+      };
+      setTimeout(tryReadLater, 0);
     };
-    setTimeout(tryReadLater, 0);
-  };
 
   useEffect(() => {
     return () => {
