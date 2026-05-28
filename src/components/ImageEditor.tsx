@@ -54,6 +54,7 @@ export default function ImageEditor() {
   const [exportPreviewUrl, setExportPreviewUrl] = useState<string>("");
   const [mobileUiNonce, setMobileUiNonce] = useState<number>(0);
   const [isCropMode, setIsCropMode] = useState<boolean>(false);
+  const [isDraggingOver, setIsDraggingOver] = useState<boolean>(false);
   const [crop, setCrop] = useState<CropState>(DEFAULT_CROP);
   const [isCropDragging, setIsCropDragging] = useState<boolean>(false);
   const [isRangeMode, setIsRangeMode] = useState<boolean>(false);
@@ -2340,10 +2341,12 @@ export default function ImageEditor() {
       {!image && (
         <div className="col-span-12 flex justify-center">
           <div 
-            className="cm-empty-state bg-[color:var(--cm-surface)] p-6 lg:p-10 rounded-2xl border border-[color:var(--cm-border)] flex flex-col items-center justify-center gap-4 w-full aspect-square lg:w-[70vw] lg:max-w-[700px] lg:aspect-[unset] lg:h-[70vh] lg:max-h-[700px] cursor-pointer"
+            className={`cm-empty-state bg-[color:var(--cm-surface)] p-6 lg:p-10 rounded-2xl border-2 flex flex-col items-center justify-center gap-4 w-full aspect-square lg:w-[70vw] lg:max-w-[700px] lg:aspect-[unset] lg:h-[70vh] lg:max-h-[700px] cursor-pointer transition-all duration-200 ${isDraggingOver ? 'border-[color:var(--cm-brass)] scale-105 shadow-2xl' : 'border-[color:var(--cm-border)]'}`}
+            style={{ transform: isDraggingOver ? 'scale(1.05)' : 'scale(1)' }}
             onDrop={(e) => {
               e.preventDefault();
               e.stopPropagation();
+              setIsDraggingOver(false);
               const files = e.dataTransfer.files;
               if (files && files.length > 0) {
                 const droppedFile = files[0];
@@ -2357,9 +2360,14 @@ export default function ImageEditor() {
                 }
               }
             }}
-            onDragOver={(e) => { e.preventDefault(); }}
-            onDragEnter={(e) => { e.preventDefault(); }}
-            onDragLeave={(e) => { e.preventDefault(); }}
+            onDragOver={(e) => { e.preventDefault(); setIsDraggingOver(true); }}
+            onDragEnter={(e) => { e.preventDefault(); setIsDraggingOver(true); }}
+            onDragLeave={(e) => { 
+              e.preventDefault(); 
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                setIsDraggingOver(false);
+              }
+            }}
           >
           <div className="flex flex-col items-center gap-4 text-[color:var(--cm-ink-2)]">
             <div className="w-16 h-16 rounded-2xl bg-[color:var(--cm-surface)] flex items-center justify-center border border-[color:var(--cm-border)] shadow-sm">
