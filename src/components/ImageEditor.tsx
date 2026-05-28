@@ -2341,8 +2341,8 @@ export default function ImageEditor() {
       {!image && (
         <div className="col-span-12 flex justify-center">
           <div 
-            className={`cm-empty-state bg-[color:var(--cm-surface)] p-6 lg:p-10 rounded-2xl border-2 flex flex-col items-center justify-center gap-4 w-full aspect-square lg:w-[70vw] lg:max-w-[700px] lg:aspect-[unset] lg:h-[70vh] lg:max-h-[700px] cursor-pointer transition-all duration-200 ${isDraggingOver ? 'border-[color:var(--cm-brass)] scale-105 shadow-2xl' : 'border-[color:var(--cm-border)]'}`}
-            style={{ transform: isDraggingOver ? 'scale(1.05)' : 'scale(1)' }}
+            className={`cm-empty-state bg-[color:var(--cm-surface)] p-6 lg:p-10 rounded-2xl border-2 flex flex-col items-center justify-center gap-4 w-full aspect-square lg:w-[70vw] lg:max-w-[700px] lg:aspect-[unset] lg:h-[70vh] lg:max-h-[700px] cursor-pointer transition-all duration-200 ${isDraggingOver ? 'border-[color:var(--cm-brass)] shadow-2xl' : 'border-[color:var(--cm-border)]'}`}
+            style={{ transform: isDraggingOver ? 'scale(1)' : 'scale(1)' }}
             onDrop={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -2370,7 +2370,7 @@ export default function ImageEditor() {
             }}
           >
           <div className="flex flex-col items-center gap-4 text-[color:var(--cm-ink-2)]">
-            <div className="w-16 h-16 rounded-2xl bg-[color:var(--cm-surface)] flex items-center justify-center border border-[color:var(--cm-border)] shadow-sm">
+            <div className="w-16 h-16 rounded-2xl bg-[color:var(--cm-surface)] flex items-center justify-center border border-[color:var(--cm-border)] shadow-sm transition-transform duration-200" style={{ transform: isDraggingOver ? 'scale(1.2)' : 'scale(1)' }}>
               <Upload className="w-7 h-7 text-[color:var(--cm-brass)]" />
             </div>
             <div className="text-sm font-semibold text-[color:var(--cm-ink)]">上传照片开始制作</div>
