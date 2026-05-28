@@ -3676,7 +3676,13 @@ export default function ImageEditor() {
                       <button
                         type="button"
                         onClick={() => setTextScale(1)}
-                        className="h-8 px-3 rounded-lg text-xs font-medium border-2 border-[color:var(--cm-border-strong)] bg-[color:var(--cm-surface)] text-[color:var(--cm-ink-2)] hover:border-[color:color-mix(in_srgb,var(--cm-brass)_44%,var(--cm-border-strong))] whitespace-nowrap"
+                        disabled={textScale === 1}
+                        className={cn(
+                          "h-8 px-3 rounded-lg text-xs font-medium border-2 bg-[color:var(--cm-surface)] whitespace-nowrap",
+                          textScale === 1
+                            ? "border-[color:var(--cm-border)] text-[color:var(--cm-ink-3)] cursor-not-allowed"
+                            : "border-[color:var(--cm-border-strong)] text-[color:var(--cm-ink-2)] hover:border-[color:color-mix(in_srgb,var(--cm-brass)_44%,var(--cm-border-strong))]"
+                        )}
                       >
                         重置
                       </button>
