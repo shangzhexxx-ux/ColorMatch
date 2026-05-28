@@ -1261,123 +1261,60 @@ export default function ImageEditor() {
 
       void (async () => {
         try {
-          const { default: EXIF } = await import("exif-js");
+          const exifr = await import("exifr");
           
-          const processExif = (data: any) => {
-            const dateTime =
-              EXIF.getTag(data, "DateTimeOriginal") ||
-              EXIF.getTag(data, "DateTimeDigitized") ||
-              EXIF.getTag(data, "DateTime");
-            if (typeof dateTime === "string" && dateTime.includes(" ")) {
-              try {
-                const parts = dateTime.split(" ");
-                const dateParts = parts[0] ? parts[0].split(":") : null;
-                const timeParts = parts[1] ? parts[1].split(":") : null;
-                const monthIdx = dateParts && dateParts[1] ? parseInt(dateParts[1], 10) - 1 : NaN;
-                const hour = timeParts && timeParts[0] ? parseInt(timeParts[0], 10) : NaN;
-                const minute = timeParts && timeParts[1] ? parseInt(timeParts[1], 10) : NaN;
-
-                if (
-                  !Number.isNaN(monthIdx) &&
-                  monthIdx >= 0 &&
-                  monthIdx <= 11 &&
-                  !Number.isNaN(hour) &&
-                  !Number.isNaN(minute)
-                ) {
-                  const monthNames = [
-                    "January",
-                    "February",
-                    "March",
-                    "April",
-                    "May",
-                    "June",
-                    "July",
-                    "August",
-                    "September",
-                    "October",
-                    "November",
-                    "December",
-                  ];
-                  const month = monthNames[monthIdx];
-                  const ampm = hour >= 12 ? "pm" : "am";
-                  const hour12 = hour % 12 || 12;
-                  const timeStr = `${String(hour12).padStart(2, "0")}:${String(minute).padStart(2, "0")}${ampm}`;
-                  if (dateRequestIdRef.current === dateRequestId && !dateManuallyEditedRef.current) {
-                    setDate(`${month} - ${timeStr}`);
-                  }
-                }
-              } catch {}
-            }
-
-            const gpsLat = EXIF.getTag(data, "GPSLatitude");
-            const gpsLatRef = EXIF.getTag(data, "GPSLatitudeRef");
-            const gpsLon = EXIF.getTag(data, "GPSLongitude");
-            const gpsLonRef = EXIF.getTag(data, "GPSLongitudeRef");
-            
-            console.log("[ColorMatch] GPS Debug:", { gpsLat, gpsLatRef, gpsLon, gpsLonRef });
-
-            const toNumber = (value: any) => {
-              if (value == null) return null;
-              if (typeof value === "number") return value;
-              if (
-                typeof value === "object" &&
-                typeof value.numerator === "number" &&
-                typeof value.denominator === "number" &&
-                value.denominator !== 0
-              ) {
-                return value.numerator / value.denominator;
-              }
-              return null;
-            };
-
-            const dmsToDecimal = (dms: any[], ref: string | undefined) => {
-              if (!Array.isArray(dms) || dms.length < 3) return null;
-              const d = toNumber(dms[0]);
-              const m = toNumber(dms[1]);
-              const s = toNumber(dms[2]);
-              if (d == null || m == null || s == null) return null;
-              let dec = d + m / 60 + s / 3600;
-              if (ref === "S" || ref === "W") dec = -dec;
-              return dec;
-            };
-
-            const lat = dmsToDecimal(gpsLat, gpsLatRef);
-            const lon = dmsToDecimal(gpsLon, gpsLonRef);
-
-            if (lat != null && lon != null) {
-              void (async () => {
-                const city = await reverseGeocodeCity(lat, lon);
-                if (locationRequestIdRef.current !== locationRequestId) return;
-                if (locationManuallyEditedRef.current) return;
-                if (city) setLocation(city);
-              })();
-            } else {
-              fallbackToDevice();
-            }
-
-            resetInputLater();
-          };
-
           try {
-            EXIF.getData(file as any, processExif);
-          } catch {
-            const blobUrl = URL.createObjectURL(file);
-            const img = new Image();
-            img.onload = () => {
-              EXIF.getData(img, processExif);
-              URL.revokeObjectURL(blobUrl);
-            };
-            img.onerror = () => {
+            const exifData = await exifr.parse(file, {
+              pick: ["DateTimeOriginal", "latitude", "longitude"]
+            });
+            
+            console.log("[ColorMatch] EXIF Data:", exifData);
+            
+            if (exifData) {
+              if (exifData.DateTimeOriginal) {
+                const dt = exifData.DateTimeOriginal;
+                const monthNames = [
+                  "January", "February", "March", "April", "May", "June",
+                  "July", "August", "September", "October", "November", "December"
+                ];
+                const month = monthNames[dt.getMonth()];
+                const hour = dt.getHours();
+                const ampm = hour >= 12 ? "pm" : "am";
+                const hour12 = hour % 12 || 12;
+                const minute = dt.getMinutes();
+                const timeStr = `${String(hour12).padStart(2, "0")}:${String(minute).padStart(2, "0")}${ampm}`;
+                if (dateRequestIdRef.current === dateRequestId && !dateManuallyEditedRef.current) {
+                  setDate(`${month} - ${timeStr}`);
+                }
+              }
+              
+              const lat = exifData.latitude;
+              const lon = exifData.longitude;
+              
+              console.log("[ColorMatch] GPS:", { lat, lon });
+              
+              if (lat != null && lon != null) {
+                const city = await reverseGeocodeCity(lat, lon);
+                if (locationRequestIdRef.current === locationRequestId && !locationManuallyEditedRef.current && city) {
+                  setLocation(city);
+                }
+              } else {
+                fallbackToDevice();
+              }
+            } else {
+              console.log("[ColorMatch] No EXIF data found");
               fallbackToDevice();
-              resetInputLater();
-              URL.revokeObjectURL(blobUrl);
-            };
-            img.src = blobUrl;
+            }
+          } catch (exifError) {
+            console.log("[ColorMatch] EXIF parse error:", exifError);
+            fallbackToDevice();
           }
         } catch {
+          console.log("[ColorMatch] exifr import failed");
           fallbackToDevice();
-          resetInputLater();
         }
+        
+        resetInputLater();
       })();
     };
 
