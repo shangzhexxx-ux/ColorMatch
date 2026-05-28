@@ -1307,8 +1307,12 @@ export default function ImageEditor() {
                   }
                   const fullDateStr = `${month} ${day}${finalTimeStr}`;
                   console.log("[ColorMatch] Setting date from GPS:", fullDateStr);
+                  console.log("[ColorMatch] dateRequestId check:", { current: dateRequestIdRef.current, expected: dateRequestId, match: dateRequestIdRef.current === dateRequestId });
+                  console.log("[ColorMatch] dateManuallyEditedRef:", dateManuallyEditedRef.current);
                   if (dateRequestIdRef.current === dateRequestId && !dateManuallyEditedRef.current) {
                     setDate(fullDateStr);
+                  } else {
+                    console.log("[ColorMatch] Date NOT set, conditions not met");
                   }
                 }
               }
