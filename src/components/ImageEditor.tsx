@@ -1276,19 +1276,11 @@ export default function ImageEditor() {
             if (exifData) {
               console.log("[ColorMatch] All EXIF data:", JSON.stringify(exifData, null, 2));
               
-              console.log("[ColorMatch] Checking date fields:", {
-                DateTimeOriginal: exifData.DateTimeOriginal,
-                dateTimeOriginal: exifData.dateTimeOriginal,
-                CreateDate: exifData.CreateDate,
-                createDate: exifData.createDate,
-                DateTime: exifData.DateTime,
-                dateTime: exifData.dateTime,
-                ModifyDate: exifData.ModifyDate,
-                modifyDate: exifData.modifyDate,
-                CreationDate: exifData.CreationDate,
-                creationDate: exifData.creationDate,
-                MediaCreateDate: exifData.MediaCreateDate,
-                mediaCreateDate: exifData.mediaCreateDate
+              console.log("[ColorMatch] File metadata:", {
+                lastModified: new Date(file.lastModified).toISOString(),
+                lastModifiedDate: new Date(file.lastModified).toLocaleString(),
+                name: file.name,
+                size: file.size
               });
               
               const dateTimeOriginal = exifData.DateTimeOriginal || exifData.dateTimeOriginal || 
