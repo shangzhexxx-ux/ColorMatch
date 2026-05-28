@@ -1,20 +1,21 @@
 @import "tailwindcss";
 
 :root {
-  --cm-paper: #f6f1e8;
-  --cm-surface: #fffcf6;
-  --cm-surface-2: #efe7db;
-  --cm-ink: #1f1a16;
-  --cm-ink-2: #5e544c;
-  --cm-ink-3: #8a7f76;
-  --cm-brass: #b08d57;
-  --cm-wine: #7a3b37;
-  --cm-border: rgba(31, 26, 22, 0.14);
-  --cm-border-strong: rgba(31, 26, 22, 0.26);
-  --cm-btn: #2a241f;
-  --cm-btn-hover: #332b25;
-  --cm-btn-active: #241f1b;
-  --cm-btn-text: #fffcf6;
+  --cm-paper: #faf9f7;
+  --cm-surface: #ffffff;
+  --cm-surface-2: #f5f3f0;
+  --cm-ink: #2d2a26;
+  --cm-ink-2: #7a756e;
+  --cm-ink-3: #a8a39b;
+  --cm-brass: #c4956a;
+  --cm-wine: #8a4242;
+  --cm-border: rgba(0, 0, 0, 0.05);
+  --cm-border-strong: rgba(0, 0, 0, 0.1);
+  --cm-btn: #2d2a26;
+  --cm-btn-hover: #3d3a36;
+  --cm-btn-active: #1f1d1a;
+  --cm-btn-text: #ffffff;
+  --cm-focus: rgba(169, 120, 67, 0.28);
   --background: var(--cm-paper);
   --foreground: var(--cm-ink);
 }
@@ -27,10 +28,16 @@
 }
 
 body {
-  background: var(--background);
+  background:
+    linear-gradient(180deg, #ffffff 0%, var(--background) 34%, #f2f3f5 100%);
   color: var(--foreground);
   font-family: var(--font-inter), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   -webkit-text-size-adjust: 100%;
+}
+
+button,
+input {
+  -webkit-tap-highlight-color: transparent;
 }
 
 ::selection {
@@ -82,7 +89,7 @@ body {
   cursor: pointer;
   transition: background 150ms ease-out, transform 100ms ease-out, box-shadow 150ms ease-out;
   display: block;
-  box-shadow: inset 0 1px 0 rgba(255, 252, 246, 0.08), 0 1px 0 rgba(31, 26, 22, 0.08), 0 10px 22px rgba(31, 26, 22, 0.09);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 1px 0 rgba(24, 24, 27, 0.08), 0 12px 24px rgba(24, 24, 27, 0.12);
   font-family: inherit;
   line-height: 48px;
   text-align: center;
@@ -92,7 +99,7 @@ body {
 .cm-file::-webkit-file-upload-button:hover {
   background: var(--cm-btn-hover);
   border-color: color-mix(in srgb, var(--cm-brass) 60%, var(--cm-border));
-  box-shadow: inset 0 1px 0 rgba(255, 252, 246, 0.10), 0 1px 0 rgba(31, 26, 22, 0.10), 0 14px 30px rgba(31, 26, 22, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 1px 0 rgba(24, 24, 27, 0.10), 0 16px 32px rgba(24, 24, 27, 0.15);
 }
 
 .cm-file::-webkit-file-upload-button:active {
@@ -121,7 +128,7 @@ body {
   cursor: pointer;
   transition: background 150ms ease-out, transform 100ms ease-out, box-shadow 150ms ease-out;
   display: block;
-  box-shadow: inset 0 1px 0 rgba(255, 252, 246, 0.08), 0 1px 0 rgba(31, 26, 22, 0.08), 0 10px 22px rgba(31, 26, 22, 0.09);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 1px 0 rgba(24, 24, 27, 0.08), 0 12px 24px rgba(24, 24, 27, 0.12);
   font-family: inherit;
   line-height: 48px;
   text-align: center;
@@ -132,7 +139,7 @@ body {
 .cm-file::file-selector-button:hover {
   background: var(--cm-btn-hover);
   border-color: color-mix(in srgb, var(--cm-brass) 60%, var(--cm-border));
-  box-shadow: inset 0 1px 0 rgba(255, 252, 246, 0.10), 0 1px 0 rgba(31, 26, 22, 0.10), 0 14px 30px rgba(31, 26, 22, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 1px 0 rgba(24, 24, 27, 0.10), 0 16px 32px rgba(24, 24, 27, 0.15);
 }
 
 .cm-file::file-selector-button:active {
@@ -162,11 +169,12 @@ body {
   border: none;
   font-family: inherit;
   line-height: 48px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 12px 24px rgba(24, 24, 27, 0.12);
 }
 
 .cm-upload-btn:hover {
   background: var(--cm-btn-hover);
-  box-shadow: inset 0 1px 0 rgba(255, 252, 246, 0.10), 0 10px 22px rgba(31, 26, 22, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 16px 32px rgba(24, 24, 27, 0.15);
 }
 
 .cm-upload-btn:active {
@@ -177,6 +185,75 @@ body {
 .cm-upload-btn:focus-visible {
   outline: 2px solid var(--cm-brass);
   outline-offset: 2px;
+}
+
+.cm-editor {
+  isolation: isolate;
+}
+
+.cm-empty-state,
+.cm-preview-panel,
+.cm-controls-panel {
+  box-shadow: 0 18px 46px rgba(24, 24, 27, 0.07), 0 1px 0 rgba(255, 255, 255, 0.82) inset;
+}
+
+.cm-empty-state {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.9)),
+    linear-gradient(135deg, rgba(169, 120, 67, 0.08), rgba(61, 91, 128, 0.07));
+}
+
+.cm-preview-panel {
+  background: color-mix(in srgb, var(--cm-surface) 92%, transparent);
+}
+
+.cm-mobile-stage {
+  background:
+    linear-gradient(180deg, #ffffff 0%, var(--cm-paper) 52%, #eef0f2 100%);
+}
+
+.cm-preview-shell {
+  box-shadow: 0 14px 34px rgba(24, 24, 27, 0.08), 0 1px 0 rgba(255, 255, 255, 0.86) inset;
+}
+
+.cm-output-card {
+  box-shadow: 0 28px 70px rgba(24, 24, 27, 0.22), 0 2px 10px rgba(24, 24, 27, 0.08);
+}
+
+.cm-controls-panel {
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.cm-subpanel {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(241, 242, 244, 0.74));
+  border-style: solid;
+}
+
+.cm-tabbar {
+  background: var(--cm-surface-2);
+  border: 1px solid var(--cm-border);
+}
+
+.cm-mobile-actions {
+  box-shadow: 0 -18px 42px rgba(24, 24, 27, 0.10);
+}
+
+.cm-controls-panel input[type="text"] {
+  transition: border-color 150ms ease-out, box-shadow 150ms ease-out, background 150ms ease-out;
+}
+
+.cm-controls-panel input[type="text"]:focus {
+  background: #ffffff;
+  box-shadow: 0 0 0 4px var(--cm-focus);
+}
+
+.scheme-scroll {
+  scrollbar-width: none;
+}
+
+.scheme-scroll::-webkit-scrollbar {
+  display: none;
 }
 
 html.cm-preview-active .cm-home-header,

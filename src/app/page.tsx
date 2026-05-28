@@ -14,11 +14,11 @@ const ImageEditor = dynamic(() => import("@/components/ImageEditor"), {
 
 export default function Home() {
   return (
-    <main className="flex-1 flex flex-col items-center py-8 px-4 md:py-16">
-      <div className="w-full max-w-6xl flex flex-col gap-8">
-        <header className="cm-home-header flex flex-col gap-2">
-          <h1 className="text-3xl font-bold tracking-tight text-[color:var(--cm-ink)]">Color Match Live</h1>
-          <p className="text-[color:var(--cm-ink-2)]">
+    <main className="flex-1 flex flex-col items-center py-6 px-4 md:py-12">
+      <div className="w-full max-w-6xl flex flex-col gap-6 md:gap-8">
+        <header className="cm-home-header flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+          <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-[color:var(--cm-ink)]">Color Match Live</h1>
+          <p className="max-w-xl text-sm md:text-base text-[color:var(--cm-ink-2)] md:text-right">
             创建具有电影感和小红书风格的排版图片。自动取色，自动解析 EXIF。
           </p>
         </header>
