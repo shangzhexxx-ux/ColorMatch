@@ -1275,25 +1275,31 @@ export default function ImageEditor() {
             console.log("[ColorMatch] File type:", file.type, "File name:", file.name);
             
             if (exifData) {
-              if (exifData.DateTimeOriginal) {
-                const dt = exifData.DateTimeOriginal;
-                const monthNames = [
-                  "January", "February", "March", "April", "May", "June",
-                  "July", "August", "September", "October", "November", "December"
-                ];
-                const month = monthNames[dt.getMonth()];
-                const hour = dt.getHours();
-                const ampm = hour >= 12 ? "pm" : "am";
-                const hour12 = hour % 12 || 12;
-                const minute = dt.getMinutes();
-                const timeStr = `${String(hour12).padStart(2, "0")}:${String(minute).padStart(2, "0")}${ampm}`;
-                if (dateRequestIdRef.current === dateRequestId && !dateManuallyEditedRef.current) {
-                  setDate(`${month} - ${timeStr}`);
+              console.log("[ColorMatch] All EXIF data:", JSON.stringify(exifData, null, 2));
+              
+              const dateTime = exifData.DateTimeOriginal || exifData.dateTimeOriginal || exifData.CreateDate || exifData.creationDate;
+              if (dateTime) {
+                console.log("[ColorMatch] Found date:", dateTime);
+                const dt = new Date(dateTime);
+                if (!isNaN(dt.getTime())) {
+                  const monthNames = [
+                    "January", "February", "March", "April", "May", "June",
+                    "July", "August", "September", "October", "November", "December"
+                  ];
+                  const month = monthNames[dt.getMonth()];
+                  const hour = dt.getHours();
+                  const ampm = hour >= 12 ? "pm" : "am";
+                  const hour12 = hour % 12 || 12;
+                  const minute = dt.getMinutes();
+                  const timeStr = `${String(hour12).padStart(2, "0")}:${String(minute).padStart(2, "0")}${ampm}`;
+                  if (dateRequestIdRef.current === dateRequestId && !dateManuallyEditedRef.current) {
+                    setDate(`${month} - ${timeStr}`);
+                  }
                 }
               }
               
-              const lat = exifData.latitude;
-              const lon = exifData.longitude;
+              const lat = exifData.latitude || exifData.lat || exifData.GPSLatitude;
+              const lon = exifData.longitude || exifData.lon || exifData.GPSLongitude;
               
               console.log("[ColorMatch] GPS:", { lat, lon });
               
