@@ -1259,10 +1259,6 @@ export default function ImageEditor() {
         })();
       };
 
-      setTimeout(() => {
-        fallbackToDevice();
-      }, 1200);
-
       void (async () => {
         try {
           const { default: EXIF } = await import("exif-js");
