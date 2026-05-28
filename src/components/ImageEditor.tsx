@@ -1266,8 +1266,12 @@ export default function ImageEditor() {
           try {
             const exifData = await exifr.parse(file, {
               gps: true,
-              translateKeys: true,
-              translateValues: true
+              pick: [
+                "DateTimeOriginal", "dateTimeOriginal", "CreateDate", "createDate",
+                "DateTime", "dateTime", "ModifyDate", "modifyDate",
+                "GPSDateStamp", "GPSTimeStamp",
+                "latitude", "longitude", "GPSLatitude", "GPSLongitude"
+              ]
             });
             
             console.log("[ColorMatch] EXIF Data:", exifData);
