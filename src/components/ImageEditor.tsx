@@ -2035,9 +2035,12 @@ export default function ImageEditor() {
       return "";
     })();
 
+    const isMobileExport = isMobileNow();
+    const previewCardRef = isMobileExport ? mobilePreviewCardRef : desktopPreviewCardRef;
+
     const previewScale = (() => {
       try {
-        const el = desktopPreviewCardRef.current || img;
+        const el = previewCardRef.current || img;
         const rect = el.getBoundingClientRect();
         if (!rect || rect.width <= 0) return 1;
         const previewCardWidth = rect.width;
@@ -2075,17 +2078,15 @@ export default function ImageEditor() {
       }
     };
 
-    const cardW = (desktopPreviewCardRef.current?.getBoundingClientRect().width) || 572;
-    const cardH = (desktopPreviewCardRef.current?.getBoundingClientRect().height) || 763;
     const basePreviewFontPx = (() => {
-      if (isPortrait) {
-        const stripWPreview = Math.round(cardW * clampStripRatio(portraitStripRatio, portraitStripMin));
-        return Math.round(stripWPreview * 0.188) * textScale;
+      if (isMobileExport) {
+        return (isPortrait ? 13 : 17) * textScale;
       } else {
-        const stripHPreview = Math.round(cardH * clampStripRatio(landscapeStripRatio, landscapeStripMin));
-        return Math.round(stripHPreview * 0.188) * textScale;
+        return (isPortrait ? 13 : 17) * textScale;
       }
     })();
+
+    const exportFontPx = Math.round(basePreviewFontPx * (isMobileExport ? 4 : 4));
 
     if (isPortrait) {
       const stripW = Math.round(targetWidth * clampStripRatio(portraitStripRatio, portraitStripMin));
@@ -2122,7 +2123,7 @@ export default function ImageEditor() {
       ctx.fillStyle = textColor;
       const selectedFont = FONT_OPTIONS[selectedFontIndex];
       const fontWeight = selectedFont.weight;
-      const fontPx = getExportFontPx(basePreviewFontPx);
+      const fontPx = exportFontPx;
       const spacingRatio = exportTextIsLong ? 0.12 : 0.18;
       ctx.font = `${selectedFont.style} ${fontWeight} ${fontPx}px "${selectedFont.value}", serif`;
       const spacingPx = fontPx * spacingRatio;
@@ -2163,7 +2164,7 @@ export default function ImageEditor() {
       ctx.fillStyle = textColor;
       const selectedFont = FONT_OPTIONS[selectedFontIndex];
       const fontWeight = selectedFont.weight;
-      const fontPx = getExportFontPx(basePreviewFontPx);
+      const fontPx = exportFontPx;
       const spacingRatio = exportTextIsLong ? 0.1 : 0.16;
       ctx.font = `${selectedFont.style} ${fontWeight} ${fontPx}px "${selectedFont.value}", serif`;
       const spacingPx = fontPx * spacingRatio;
@@ -2326,12 +2327,13 @@ export default function ImageEditor() {
   return (
     <div
       ref={editorRootRef}
-      className="cm-editor grid grid-cols-1 lg:grid-cols-12 lg:grid-rows-[1fr_auto] gap-3 lg:gap-x-8 lg:gap-y-6 items-start lg:items-stretch lg:min-h-[calc(100vh-24px)]"
+      className="cm-editor grid grid-cols-1 lg:grid-cols-12 lg:grid-rows-[1fr_auto] gap-3 lg:gap-x-8 lg:gap-y-6 items-start lg:items-stretch w-full"
     >
       {pickerPortal}
       {modeHintsPortal}
       {!image && (
-        <div className="cm-empty-state lg:col-span-12 bg-[color:var(--cm-surface)] p-10 rounded-2xl border border-[color:var(--cm-border)] flex flex-col items-center justify-center gap-6 min-h-[320px]">
+        <div className="col-span-12 flex justify-center">
+          <div className="cm-empty-state bg-[color:var(--cm-surface)] p-6 lg:p-10 rounded-2xl border border-[color:var(--cm-border)] flex flex-col items-center justify-center gap-4 w-full aspect-square lg:w-[70vw] lg:max-w-[700px] lg:aspect-[unset] lg:h-[70vh] lg:max-h-[700px]">
           <div className="flex flex-col items-center gap-4 text-[color:var(--cm-ink-2)]">
             <div className="w-16 h-16 rounded-2xl bg-[color:var(--cm-surface)] flex items-center justify-center border border-[color:var(--cm-border)] shadow-sm">
               <Upload className="w-7 h-7 text-[color:var(--cm-brass)]" />
@@ -2348,10 +2350,11 @@ export default function ImageEditor() {
             </label>
           </div>
         </div>
+        </div>
       )}
       {image && (
         <>
-        <div className="cm-mobile-stage lg:hidden fixed inset-0 z-[60] bg-[color:var(--cm-paper)] flex flex-col">
+        <div className="cm-mobile-stage lg:hidden fixed inset-0 z-[60] flex flex-col">
                   <div
                     ref={mobileScrollRef}
                     className="flex-1 overflow-y-auto overscroll-contain"
@@ -2706,7 +2709,7 @@ export default function ImageEditor() {
                                         className={cn(
                                           "flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all w-[78px] shrink-0 outline-none focus:outline-none focus-visible:outline-none",
                                           isSelected
-                                            ? "bg-[color:color-mix(in_srgb,var(--cm-brass)_12%,transparent)]"
+                                            ? "bg-[color:color-mix(in_srgb,var(--cm-brass)_6%,transparent)]"
                                             : "bg-[color:var(--cm-surface)] hover:bg-[color:color-mix(in_srgb,var(--cm-brass)_8%,transparent)] active:scale-[0.99]"
                                         )}
                                       >
@@ -2763,7 +2766,7 @@ export default function ImageEditor() {
                                 className={cn(
                                   "w-[52px] h-[52px] rounded-xl border-2 transition-all flex items-center justify-center",
                                   isPickerMode === "bg"
-                                    ? "border-transparent ring-2 ring-[color:var(--cm-brass)] bg-[color:color-mix(in_srgb,var(--cm-brass)_12%,transparent)]"
+                                    ? "border-transparent ring-2 ring-[color:var(--cm-brass)] bg-[color:color-mix(in_srgb,var(--cm-brass)_6%,transparent)]"
                                     : "border-[color:var(--cm-border-strong)] bg-[color:var(--cm-surface)] hover:border-[color:color-mix(in_srgb,var(--cm-brass)_44%,var(--cm-border-strong))]"
                                 )}
                               >
@@ -2927,7 +2930,7 @@ export default function ImageEditor() {
                               className={cn(
                                 "py-2 px-1 rounded-lg text-sm font-medium transition-all border-2",
                                 selectedFontIndex === index
-                                  ? "border-transparent ring-2 ring-[color:var(--cm-brass)] bg-[color:var(--cm-ink)] text-[color:var(--cm-surface)]"
+                                  ? "border-transparent ring-2 ring-[color:var(--cm-brass)] bg-[color:var(--cm-surface)] text-[color:var(--cm-ink)]"
                                   : "border-[color:var(--cm-border-strong)] bg-[color:var(--cm-surface)] text-[color:var(--cm-ink-2)] hover:border-[color:color-mix(in_srgb,var(--cm-brass)_44%,var(--cm-border-strong))]"
                               )}
                               style={{ fontFamily: font.cssVar, fontStyle: font.style, fontWeight: font.weight }}
@@ -3046,17 +3049,22 @@ export default function ImageEditor() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               if (isCropMode) {
                                 cropModeWantedRef.current = false;
                                 setIsCropMode(false);
+                                setMobileTab("presets");
                               } else {
                                 setIsPickerMode(null);
                                 cropModeWantedRef.current = true;
                                 setIsCropMode(true);
                               }
                             }}
-                            className="h-11 px-4 rounded-xl text-sm font-medium border-2 border-[color:var(--cm-border-strong)] bg-[color:var(--cm-surface)] text-[color:var(--cm-ink-2)] hover:border-[color:color-mix(in_srgb,var(--cm-brass)_44%,var(--cm-border-strong))]"
+                            onTouchStart={(e) => {
+                              e.stopPropagation();
+                            }}
+                            className="h-11 px-4 rounded-xl text-sm font-medium border-2 border-[color:var(--cm-border-strong)] bg-[color:var(--cm-surface)] text-[color:var(--cm-ink-2)] active:bg-[color:var(--cm-surface-2)] touch-handling"
                           >
                             {isCropMode ? "退出裁剪" : "进入裁剪"}
                           </button>
@@ -3069,7 +3077,7 @@ export default function ImageEditor() {
             </div>
 
               <div
-                className="cm-mobile-actions fixed left-0 right-0 bottom-0 z-[110] bg-[color:color-mix(in_srgb,var(--cm-paper)_92%,transparent)] backdrop-blur border-t border-[color:var(--cm-border)]"
+                className="cm-mobile-actions fixed left-0 right-0 bottom-0 z-[110] bg-[color:var(--cm-surface)] border-t border-[color:var(--cm-border)]"
                 style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
               >
                 <div className="mx-auto w-full max-w-[430px] px-4 py-3 space-y-2">
@@ -3083,7 +3091,7 @@ export default function ImageEditor() {
                     </label>
                     <button
                       onClick={downloadImage}
-                      className="w-full h-12 flex items-center justify-center gap-2 bg-[color:var(--cm-btn)] hover:bg-[color:var(--cm-btn-hover)] active:bg-[color:var(--cm-btn-active)] active:scale-[0.99] text-[color:var(--cm-btn-text)] rounded-xl text-sm font-medium transition-colors duration-150 border border-[color:color-mix(in_srgb,var(--cm-brass)_44%,var(--cm-border))] shadow-sm"
+                      className="cm-upload-btn"
                     >
                       <Download className="w-5 h-5" />
                       导出成品
@@ -3374,14 +3382,14 @@ export default function ImageEditor() {
                 <input type="file" accept="image/*,video/*,.heic,.heif,.avci,.avcs" onChange={handleFileUpload} className="sr-only" />
               </label>
 
-              <div className="space-y-4 lg:space-y-4">
-                <label className="hidden lg:flex text-sm font-medium text-[color:var(--cm-ink-2)] flex items-center gap-2">
-                  <RefreshCw className={cn("w-3 h-3", isProcessing && "animate-spin")} />
+              <div className="space-y-5 lg:space-y-5">
+                <label className="hidden lg:flex text-base font-medium text-[color:var(--cm-ink-2)] flex items-center gap-2 whitespace-nowrap">
+                  <RefreshCw className={cn("w-4 h-4", isProcessing && "animate-spin")} />
                   智能方案预设
                 </label>
                 
                 <div className="hidden lg:block">
-                  <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 lg:mx-0 lg:px-0 lg:pb-0 lg:grid lg:grid-cols-6 lg:gap-3 lg:overflow-visible">
+                  <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 lg:mx-0 lg:px-0 lg:pb-0 lg:flex-nowrap lg:overflow-visible">
                     {schemes
                       .map((scheme, schemeIndex) => ({ scheme, schemeIndex }))
                       .filter(({ scheme }) => scheme.name !== "自定义")
@@ -3393,7 +3401,7 @@ export default function ImageEditor() {
                         key={`${scheme.name}-${scheme.bg}-${scheme.text}`}
                         onClick={() => handleSelectScheme(schemeIndex)}
                         className={cn(
-                          "flex flex-col items-center gap-2 p-2 rounded-xl transition-all w-[78px] shrink-0 lg:w-auto outline-none focus:outline-none focus-visible:outline-none",
+                          "flex flex-col items-center gap-1 p-1 rounded-xl transition-all w-[52px] shrink-0 outline-none focus:outline-none focus-visible:outline-none",
                           isSelected
                             ? "bg-[color:color-mix(in_srgb,var(--cm-brass)_12%,transparent)]"
                             : "bg-[color:var(--cm-surface)] hover:bg-[color:color-mix(in_srgb,var(--cm-brass)_8%,transparent)] active:scale-[0.99]"
@@ -3406,9 +3414,9 @@ export default function ImageEditor() {
                           )}
                           style={{ backgroundColor: scheme.bg }}
                         >
-                          <span className="font-serif italic text-lg select-none" style={{ color: scheme.text }}>Aa</span>
+                          <span className="font-serif italic text-xl select-none" style={{ color: scheme.text }}>Aa</span>
                         </div>
-                        <span className="text-[10px] font-medium text-[color:var(--cm-ink-2)]">{scheme.name}</span>
+                        <span className="text-[10px] font-medium text-[color:var(--cm-ink-2)] whitespace-nowrap">{scheme.name}</span>
                       </button>
                       );
                     })}
@@ -3596,7 +3604,7 @@ export default function ImageEditor() {
                         className={cn(
                           "flex-1 py-2 px-1 rounded-lg text-sm font-medium transition-all border-2",
                           selectedFontIndex === index
-                            ? "border-transparent ring-2 ring-[color:var(--cm-brass)] bg-[color:var(--cm-ink)] text-[color:var(--cm-surface)]"
+                            ? "border-transparent ring-2 ring-[color:var(--cm-brass)] bg-[color:var(--cm-surface)] text-[color:var(--cm-ink)]"
                                   : "border-[color:var(--cm-border-strong)] bg-[color:var(--cm-surface)] text-[color:var(--cm-ink-2)] hover:border-[color:color-mix(in_srgb,var(--cm-brass)_44%,var(--cm-border-strong))]"
                         )}
                         style={{ fontFamily: font.cssVar, fontStyle: font.style, fontWeight: font.weight }}
@@ -3728,7 +3736,7 @@ export default function ImageEditor() {
                 downloadImage();
               }}
               className={cn(
-                "w-full items-center justify-center gap-2 bg-[color:var(--cm-btn)] hover:bg-[color:var(--cm-btn-hover)] active:bg-[color:var(--cm-btn-active)] text-[color:var(--cm-btn-text)] py-3 rounded-xl transition-colors text-sm font-medium border border-[color:color-mix(in_srgb,var(--cm-brass)_44%,var(--cm-border))] shadow-sm flex",
+                "w-full items-center justify-center gap-2 bg-[color:var(--cm-btn)] hover:bg-[color:var(--cm-btn-hover)] active:bg-[color:var(--cm-btn-active)] text-[color:var(--cm-btn-text)] py-3 rounded-xl transition-colors text-sm font-semibold border border-[color:color-mix(in_srgb,var(--cm-brass)_44%,var(--cm-border))] shadow-sm flex",
                 (isCropMode || isRangeMode) && "opacity-60 cursor-not-allowed hover:bg-[color:var(--cm-btn)] active:bg-[color:var(--cm-btn)]"
               )}
             >
