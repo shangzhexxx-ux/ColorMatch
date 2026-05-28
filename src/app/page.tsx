@@ -23,7 +23,7 @@ export default function Home() {
             Color<span className="font-light opacity-70">Match</span>
           </h1>
           <p className="text-[14px] lg:text-[15px] text-[color:var(--cm-ink-2)] leading-relaxed">
-            上传照片，自动提取色彩与排版，导出精美成片
+            自动提取色彩与排版，导出精美成片
           </p>
           <div className="flex items-center gap-3 mt-1">
             <span className="inline-block w-6 h-[2px] rounded-full bg-[color:var(--cm-brass)] opacity-50" />
