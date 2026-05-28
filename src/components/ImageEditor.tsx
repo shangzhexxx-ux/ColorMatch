@@ -3424,7 +3424,7 @@ export default function ImageEditor() {
                 </label>
                 
                 <div className="hidden lg:block">
-                  <div className="flex gap-1 lg:gap-1 overflow-x-auto pb-1 -mx-1 px-1 lg:mx-0 lg:px-0 lg:pb-0 lg:flex-nowrap lg:overflow-visible">
+                  <div className="flex justify-between gap-2 overflow-x-auto pb-1 -mx-1 px-1 lg:mx-0 lg:px-0 lg:pb-0 lg:flex-nowrap lg:overflow-visible">
                     {schemes
                       .map((scheme, schemeIndex) => ({ scheme, schemeIndex }))
                       .filter(({ scheme }) => scheme.name !== "自定义")
@@ -3436,7 +3436,7 @@ export default function ImageEditor() {
                         key={`${scheme.name}-${scheme.bg}-${scheme.text}`}
                         onClick={() => handleSelectScheme(schemeIndex)}
                         className={cn(
-                          "flex flex-col items-center gap-1 p-1 rounded-xl transition-all w-[48px] shrink-0 outline-none focus:outline-none focus-visible:outline-none",
+                          "flex flex-col items-center gap-1 p-1 rounded-xl transition-all shrink-0 outline-none focus:outline-none focus-visible:outline-none",
                           isSelected
                             ? "bg-[color:color-mix(in_srgb,var(--cm-brass)_12%,transparent)]"
                             : "bg-[color:var(--cm-surface)] hover:bg-[color:color-mix(in_srgb,var(--cm-brass)_8%,transparent)] active:scale-[0.99]"
