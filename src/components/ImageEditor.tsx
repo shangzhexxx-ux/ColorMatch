@@ -2339,7 +2339,28 @@ export default function ImageEditor() {
       {modeHintsPortal}
       {!image && (
         <div className="col-span-12 flex justify-center">
-          <div className="cm-empty-state bg-[color:var(--cm-surface)] p-6 lg:p-10 rounded-2xl border border-[color:var(--cm-border)] flex flex-col items-center justify-center gap-4 w-full aspect-square lg:w-[70vw] lg:max-w-[700px] lg:aspect-[unset] lg:h-[70vh] lg:max-h-[700px]">
+          <div 
+            className="cm-empty-state bg-[color:var(--cm-surface)] p-6 lg:p-10 rounded-2xl border border-[color:var(--cm-border)] flex flex-col items-center justify-center gap-4 w-full aspect-square lg:w-[70vw] lg:max-w-[700px] lg:aspect-[unset] lg:h-[70vh] lg:max-h-[700px] cursor-pointer"
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const files = e.dataTransfer.files;
+              if (files && files.length > 0) {
+                const droppedFile = files[0];
+                if (droppedFile.type.startsWith("image/")) {
+                  const input = document.createElement("input");
+                  input.type = "file";
+                  const dt = new DataTransfer();
+                  dt.items.add(droppedFile);
+                  input.files = dt.files;
+                  handleFileUpload({ currentTarget: input } as any);
+                }
+              }
+            }}
+            onDragOver={(e) => { e.preventDefault(); }}
+            onDragEnter={(e) => { e.preventDefault(); }}
+            onDragLeave={(e) => { e.preventDefault(); }}
+          >
           <div className="flex flex-col items-center gap-4 text-[color:var(--cm-ink-2)]">
             <div className="w-16 h-16 rounded-2xl bg-[color:var(--cm-surface)] flex items-center justify-center border border-[color:var(--cm-border)] shadow-sm">
               <Upload className="w-7 h-7 text-[color:var(--cm-brass)]" />
