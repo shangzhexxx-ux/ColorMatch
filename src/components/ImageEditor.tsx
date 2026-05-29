@@ -2970,7 +2970,7 @@ export default function ImageEditor() {
                               key={font.value}
                               onClick={() => setSelectedFontIndex(index)}
                               className={cn(
-                                "py-2 px-1 rounded-lg text-sm font-medium transition-all border-2",
+                                "py-1 px-1 rounded-lg text-sm font-medium transition-all border-2",
                                 selectedFontIndex === index
                                   ? "border-transparent ring-2 ring-[color:var(--cm-brass)] bg-[color:var(--cm-surface)] text-[color:var(--cm-ink)]"
                                   : "border-[color:var(--cm-border-strong)] bg-[color:var(--cm-surface)] text-[color:var(--cm-ink-2)] hover:border-[color:color-mix(in_srgb,var(--cm-brass)_44%,var(--cm-border-strong))]"
@@ -3006,7 +3006,7 @@ export default function ImageEditor() {
                               onClick={() => setTextScale(1)}
                               disabled={textScale === 1}
                               className={cn(
-                                "h-9 px-3 rounded-xl text-sm font-medium border-2 bg-[color:var(--cm-surface)] whitespace-nowrap",
+                                "h-8 px-2 rounded-xl text-sm font-medium border-2 bg-[color:var(--cm-surface)] whitespace-nowrap",
                                 textScale === 1
                                   ? "border-[color:var(--cm-border)] text-[color:var(--cm-ink-3)] cursor-not-allowed"
                                   : "border-[color:var(--cm-border-strong)] text-[color:var(--cm-ink-2)] hover:border-[color:color-mix(in_srgb,var(--cm-brass)_44%,var(--cm-border-strong))]"
