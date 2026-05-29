@@ -155,14 +155,14 @@ export default function ImageEditor() {
   const mobilePreviewFontPx = (() => {
     try {
       const card = mobilePreviewCardRef.current;
-      if (!card) return (isPortrait ? 9 : 15) * textScale;
+      if (!card) return (isPortrait ? 9 : 9) * textScale;
       const rect = card.getBoundingClientRect();
       const w = rect.width;
       const h = rect.height;
-      if (w <= 0 || h <= 0) return (isPortrait ? 9 : 15) * textScale;
-      const baseFontPx = isPortrait ? 9 : 15;
+      if (w <= 0 || h <= 0) return (isPortrait ? 9 : 9) * textScale;
+      const baseFontPx = isPortrait ? 9 : 9;
       return baseFontPx * textScale;
-    } catch { return (isPortrait ? 9 : 15) * textScale; }
+    } catch { return (isPortrait ? 9 : 9) * textScale; }
   })();
 
   const desktopPreviewFontPx = (() => {
