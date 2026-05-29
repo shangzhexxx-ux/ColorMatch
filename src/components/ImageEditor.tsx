@@ -1074,18 +1074,18 @@ export default function ImageEditor() {
 
       const formatDisplayDate = (d: Date) => {
       const monthNames = [
-        "January",
-        "February",
-        "March",
-        "April",
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
         "May",
-        "June",
-        "July",
-        "August",
-        "September",
-        "October",
-        "November",
-        "December",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec",
       ];
       const month = monthNames[d.getMonth()];
       const hour = d.getHours();
@@ -1304,8 +1304,8 @@ export default function ImageEditor() {
               
               if (!isNaN(useDate.getTime())) {
                 const monthNames = [
-                  "January", "February", "March", "April", "May", "June",
-                  "July", "August", "September", "October", "November", "December"
+                  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
                 ];
                 const month = monthNames[useDate.getMonth()];
                 const day = useDate.getDate();
