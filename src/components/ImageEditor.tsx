@@ -28,7 +28,7 @@ const FONT_OPTIONS: FontOption[] = [
   { name: '衬线', value: 'Playfair Display', style: 'italic', weight: '400', cssVar: 'var(--font-playfair)' },
   { name: '现代', value: 'Montserrat', style: 'normal', weight: '400', cssVar: 'var(--font-montserrat)' },
   { name: '优雅', value: 'Cormorant Garamond', style: 'italic', weight: '400', cssVar: 'var(--font-cormorant)' },
-  { name: '复古', value: 'VT323', style: 'normal', weight: '400', cssVar: 'var(--font-vt323)' },
+  { name: '复古', value: 'HuiWenZhuDi5HaoMingChaoTi', style: 'normal', weight: '400', cssVar: 'HuiWenZhuDi5HaoMingChaoTi' },
   { name: '文艺', value: 'Merriweather', style: 'normal', weight: '700', cssVar: 'var(--font-merriweather)' },
 ];
 

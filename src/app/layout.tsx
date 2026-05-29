@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Playfair_Display, Montserrat, Cormorant_Garamond, Lora, EB_Garamond, Merriweather, VT323 } from "next/font/google";
+import { Inter, Playfair_Display, Montserrat, Cormorant_Garamond, Lora, EB_Garamond, Merriweather } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({
@@ -49,13 +49,6 @@ const merriweather = Merriweather({
   subsets: ["latin"],
   display: "swap",
   weight: ["700"],
-});
-
-const vt323 = VT323({
-  variable: "--font-vt323",
-  subsets: ["latin"],
-  display: "swap",
-  weight: ["400"],
 });
 
 export const metadata: Metadata = {

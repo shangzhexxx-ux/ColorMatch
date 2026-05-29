@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: 'HuiWenZhuDi5HaoMingChaoTi';
+  src: url('/fonts/HuiWenZhuDi5HaoMingChaoTi.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --cm-paper: #faf8f5;
   --cm-surface: #ffffff;
