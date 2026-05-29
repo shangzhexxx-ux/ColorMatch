@@ -2471,7 +2471,7 @@ export default function ImageEditor() {
                                             backgroundRepeat: "no-repeat",
                                             backgroundSize: `${mobileScaledCoverW}px ${mobileScaledCoverH}px`,
                                             backgroundPosition: `${mobileBgLeft}px ${mobileBgTop}px`,
-                                            transition: isCropDragging ? "none" : "background-position 0.12s ease-out, background-size 0.12s ease-out",
+                                            transition: isCropDragging ? "none" : "background-position 0.12s ease-out, background-size 0.12s ease-out, opacity 0.3s ease-out",
                                           }
                                         : {
                                             backgroundImage: `url(${image || FALLBACK_PIXEL})`,
@@ -2486,7 +2486,7 @@ export default function ImageEditor() {
                                     src={image || FALLBACK_PIXEL}
                                     alt="Uploaded"
                                     draggable={false}
-                                    className="absolute inset-0 w-full h-full opacity-0 pointer-events-none select-none"
+                                    className="absolute inset-0 w-full h-full opacity-0 pointer-events-none select-none transition-opacity duration-300"
                                     onLoad={onImageLoad}
                                     onError={() => {
                                       setIsProcessing(false);
@@ -2514,7 +2514,7 @@ export default function ImageEditor() {
                                           backgroundRepeat: "no-repeat",
                                           backgroundSize: `${mobileScaledCoverW}px ${mobileScaledCoverH}px`,
                                           backgroundPosition: `${mobileBgLeft}px ${mobileBgTop}px`,
-                                          transition: "background-position 0.12s ease-out, background-size 0.12s ease-out",
+                                          transition: "background-position 0.12s ease-out, background-size 0.12s ease-out, opacity 0.3s ease-out",
                                         }
                                       : {
                                           backgroundImage: `url(${image || FALLBACK_PIXEL})`,
@@ -3238,7 +3238,7 @@ export default function ImageEditor() {
                                       backgroundRepeat: "no-repeat",
                                       backgroundSize: `${desktopScaledCoverW}px ${desktopScaledCoverH}px`,
                                       backgroundPosition: `${desktopBgLeft}px ${desktopBgTop}px`,
-                                      transition: isCropDragging ? "none" : "background-position 0.12s ease-out, background-size 0.12s ease-out",
+                                      transition: isCropDragging ? "none" : "background-position 0.12s ease-out, background-size 0.12s ease-out, opacity 0.3s ease-out",
                                     }
                                   : {
                                       backgroundImage: `url(${image || FALLBACK_PIXEL})`,
@@ -3253,7 +3253,7 @@ export default function ImageEditor() {
                               src={image || FALLBACK_PIXEL}
                               alt="Uploaded"
                               draggable={false}
-                              className="absolute inset-0 w-full h-full opacity-0 pointer-events-none select-none"
+                              className="absolute inset-0 w-full h-full opacity-0 pointer-events-none select-none transition-opacity duration-300"
                               onLoad={onImageLoad}
                               onError={() => {
                                 setIsProcessing(false);
@@ -3281,7 +3281,7 @@ export default function ImageEditor() {
                                       backgroundRepeat: "no-repeat",
                                       backgroundSize: `${desktopScaledCoverW}px ${desktopScaledCoverH}px`,
                                       backgroundPosition: `${desktopBgLeft}px ${desktopBgTop}px`,
-                                      transition: "background-position 0.12s ease-out, background-size 0.12s ease-out",
+                                      transition: "background-position 0.12s ease-out, background-size 0.12s ease-out, opacity 0.3s ease-out",
                                     }
                                   : {
                                       backgroundImage: `url(${image || FALLBACK_PIXEL})`,
