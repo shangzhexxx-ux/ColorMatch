@@ -2313,8 +2313,8 @@ export default function ImageEditor() {
   const modeHintsPortal =
     typeof document !== "undefined" && !exportPreviewUrl && (isCropMode || isRangeMode || isPickerMode)
       ? createPortal(
-          <div className="fixed inset-x-0 top-[env(safe-area-inset-top)] z-[100] pointer-events-none lg:hidden flex justify-center pt-1">
-            <div className="bg-white/90 backdrop-blur-md text-gray-800 px-3 py-1.5 rounded-full text-xs font-medium shadow-lg flex items-center gap-2 border border-gray-200/50">
+          <div className="fixed inset-x-0 top-[env(safe-area-inset-top)] z-[100] pointer-events-none lg:hidden flex flex-col items-center pt-1 gap-1">
+            <div className="bg-white/90 backdrop-blur-md text-gray-800 px-4 py-2 rounded-full text-xs font-medium shadow-lg flex items-center gap-3 border border-gray-200/50">
               {isCropMode ? (
                 <>
                   <Scissors className="w-3.5 h-3.5 text-amber-600" />
@@ -2327,9 +2327,15 @@ export default function ImageEditor() {
                 </>
               ) : (
                 <>
-                  <Pipette className="w-3.5 h-3.5 text-amber-600" />
-                  <span>{isPickerMode === "bg" ? "拾取背景色" : "拾取文字色"}</span>
-                  <span className="font-mono bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full text-[10px] font-semibold">{hoverColor.toUpperCase()}</span>
+                  <Pipette className="w-4 h-4 text-amber-600" />
+                  <span>{isPickerMode === "bg" ? "背景色" : "文字色"}</span>
+                  <div className="flex items-center gap-2 ml-1">
+                    <div
+                      className="w-6 h-6 rounded-lg border-2 border-gray-300 shadow-inner"
+                      style={{ backgroundColor: hoverColor }}
+                    />
+                    <span className="font-mono text-gray-800 font-semibold">{hoverColor.toUpperCase()}</span>
+                  </div>
                 </>
               )}
             </div>
