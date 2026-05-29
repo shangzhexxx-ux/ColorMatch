@@ -3030,7 +3030,7 @@ export default function ImageEditor() {
                             onFocus={handleMobileFieldFocus}
                             onBlur={handleMobileFieldBlur}
                             onKeyDown={handleMobileKeyDown}
-                            className="w-full pl-12 pr-10 py-4 bg-[color:var(--cm-surface)] border-2 border-[color:var(--cm-border-strong)] rounded-xl text-base appearance-none shadow-none focus:outline-none focus:!border-transparent focus:ring-2 focus:ring-[color:var(--cm-brass)]"
+                            className="w-full pl-12 pr-10 py-2 bg-[color:var(--cm-surface)] border-2 border-[color:var(--cm-border-strong)] rounded-xl text-base appearance-none shadow-none focus:outline-none focus:!border-transparent focus:ring-2 focus:ring-[color:var(--cm-brass)]"
                           />
                           {location.trim() && (
                             <button
@@ -3059,7 +3059,7 @@ export default function ImageEditor() {
                             onFocus={handleMobileFieldFocus}
                             onBlur={handleMobileFieldBlur}
                             onKeyDown={handleMobileKeyDown}
-                            className="w-full pl-12 pr-10 py-4 bg-[color:var(--cm-surface)] border-2 border-[color:var(--cm-border-strong)] rounded-xl text-base appearance-none shadow-none focus:outline-none focus:!border-transparent focus:ring-2 focus:ring-[color:var(--cm-brass)]"
+                            className="w-full pl-12 pr-10 py-2 bg-[color:var(--cm-surface)] border-2 border-[color:var(--cm-border-strong)] rounded-xl text-base appearance-none shadow-none focus:outline-none focus:!border-transparent focus:ring-2 focus:ring-[color:var(--cm-brass)]"
                           />
                           {date.trim() && (
                             <button
