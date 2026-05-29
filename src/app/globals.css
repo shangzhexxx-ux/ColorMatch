@@ -2,7 +2,7 @@
 
 @font-face {
   font-family: 'HuiWenZhuDi5HaoMingChaoTi';
-  src: url('/fonts/HuiWenZhuDi5HaoMingChaoTi.otf') format('opentype');
+  src: url('/fonts/HuiWenZhuDi5HaoMingChaoTi.subset.otf') format('opentype');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
