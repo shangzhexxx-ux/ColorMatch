@@ -2407,11 +2407,11 @@ export default function ImageEditor() {
                       <div
                         ref={mobilePreviewRef}
                         className="cm-preview-shell relative w-[92vw] max-w-[420px] sm:max-w-[430px] mx-auto flex justify-center bg-[color:var(--cm-surface)] p-2 sm:p-3 rounded-2xl border border-[color:var(--cm-border)] items-center"
-                        style={{ minHeight: "35svh" }}
+                        style={{ minHeight: "40svh" }}
                       >
                         <div
                           ref={mobilePreviewCardRef}
-                          className="cm-output-card relative h-[35svh] max-h-[400px] aspect-[3/4] rounded-lg overflow-hidden bg-[color:var(--cm-surface)] grid"
+                          className="cm-output-card relative h-[40svh] max-h-[480px] aspect-[3/4] rounded-lg overflow-hidden bg-[color:var(--cm-surface)] grid"
                           style={
                             isPortrait
                               ? { gridTemplateColumns: `${portraitStripPct}% 1fr`, touchAction: isRangeMode && !isCropMode && !isPickerMode ? "none" : undefined }
