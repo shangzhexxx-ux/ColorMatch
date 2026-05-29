@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Playfair_Display, Montserrat, Cormorant_Garamond, Lora, EB_Garamond, Merriweather, Courier_Prime } from "next/font/google";
+import { Inter, Playfair_Display, Montserrat, Cormorant_Garamond, Lora, EB_Garamond, Merriweather, Special_Elite } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({
@@ -51,11 +51,11 @@ const merriweather = Merriweather({
   weight: ["700"],
 });
 
-const courierPrime = Courier_Prime({
-  variable: "--font-courier-prime",
+const specialElite = Special_Elite({
+  variable: "--font-special-elite",
   subsets: ["latin"],
   display: "swap",
-  weight: ["400", "700"],
+  weight: ["400"],
 });
 
 export const metadata: Metadata = {
