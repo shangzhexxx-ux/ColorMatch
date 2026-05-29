@@ -2397,21 +2397,17 @@ export default function ImageEditor() {
       {image && (
         <>
         <div className="cm-mobile-stage lg:hidden fixed inset-0 z-[60] flex flex-col">
-                  <div
-                    ref={mobileScrollRef}
-                    className="flex-1 overflow-y-auto overscroll-contain"
-                    style={{ WebkitOverflowScrolling: "touch" }}
-                  >
-                    <div className="px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+104px)] flex flex-col items-center gap-2">
-                      <div className="w-[92vw] max-w-[420px] h-6" /> {/* 固定占位空间 */}
-                      <div
-                        ref={mobilePreviewRef}
-                        className="cm-preview-shell relative w-[92vw] max-w-[420px] sm:max-w-[430px] mx-auto flex justify-center bg-[color:var(--cm-surface)] p-2 sm:p-3 rounded-2xl border border-[color:var(--cm-border)] items-center"
-                        style={{ minHeight: "50svh" }}
-                      >
+          <div className="flex-shrink-0">
+            <div className="px-4 pt-2 flex flex-col items-center gap-2">
+              <div className="w-[92vw] max-w-[420px] h-6" />
+              <div
+                ref={mobilePreviewRef}
+                className="cm-preview-shell relative w-[92vw] max-w-[420px] mx-auto flex justify-center bg-[color:var(--cm-surface)] p-2 rounded-2xl border border-[color:var(--cm-border)] items-center"
+                style={{ height: "35svh" }}
+              >
                         <div
                           ref={mobilePreviewCardRef}
-                          className="cm-output-card relative h-[50svh] max-h-[520px] aspect-[3/4] rounded-lg overflow-hidden bg-[color:var(--cm-surface)] grid"
+                          className="cm-output-card relative w-full h-full rounded-lg overflow-hidden bg-[color:var(--cm-surface)] grid"
                           style={
                             isPortrait
                               ? { gridTemplateColumns: `${portraitStripPct}% 1fr`, touchAction: isRangeMode && !isCropMode && !isPickerMode ? "none" : undefined }
@@ -2657,85 +2653,74 @@ export default function ImageEditor() {
                           )}
                         </div>
                       </div>
+                    </div>
+                  </div>
 
-                      <div
-                        ref={mobileControlsRef}
-                        className="cm-controls-panel bg-[color:var(--cm-surface)] w-[92vw] max-w-[420px] sm:max-w-[430px] mt-0.5 rounded-2xl border border-[color:var(--cm-border)] p-4 space-y-3"
+                  <div className="flex-shrink-0">
+                    <div className="cm-tabbar flex rounded-xl p-0.5 gap-1 sticky top-0 z-10 bg-[color:var(--cm-surface)]">
+                      <button
+                        onClick={() => {
+                          cropModeWantedRef.current = false;
+                          setIsCropMode(false);
+                          setMobileTab("presets");
+                        }}
+                        className="flex-1 py-2 rounded-lg text-sm font-medium transition-all text-[color:var(--cm-ink-2)] relative"
                       >
-                        <div className="cm-tabbar flex rounded-xl p-0.5 gap-1 sticky top-0 z-10 bg-[color:var(--cm-surface)]">
-                          <button
-                            onClick={() => {
-                              cropModeWantedRef.current = false;
-                              setIsCropMode(false);
-                              setMobileTab("presets");
-                            }}
-                            className="flex-1 py-2 rounded-lg text-sm font-medium transition-all text-[color:var(--cm-ink-2)] relative"
-                          >
-                            <span className={mobileTab === "presets" ? "text-[color:var(--cm-ink)]" : ""}>配色</span>
-                            <div
-                              className={cn(
-                                "absolute bottom-0.5 left-1/2 -translate-x-1/2 h-0.5 rounded-full bg-[color:var(--cm-brass)] transition-all duration-200",
-                                mobileTab === "presets" ? "w-6 opacity-100" : "w-0 opacity-0"
-                              )}
-                            />
-                          </button>
-                          <button
-                            onClick={() => {
-                              cropModeWantedRef.current = false;
-                              setIsCropMode(false);
-                              setMobileTab("colors");
-                            }}
-                            className="flex-1 py-2 rounded-lg text-sm font-medium transition-all text-[color:var(--cm-ink-2)] relative"
-                          >
-                            <span className={mobileTab === "colors" ? "text-[color:var(--cm-ink)]" : ""}>颜色</span>
-                            <div
-                              className={cn(
-                                "absolute bottom-0.5 left-1/2 -translate-x-1/2 h-0.5 rounded-full bg-[color:var(--cm-brass)] transition-all duration-200",
-                                mobileTab === "colors" ? "w-6 opacity-100" : "w-0 opacity-0"
-                              )}
-                            />
-                          </button>
-                          <button
-                            onClick={() => {
-                              cropModeWantedRef.current = false;
-                              setIsCropMode(false);
-                              setMobileTab("text");
-                            }}
-                            className="flex-1 py-2 rounded-lg text-sm font-medium transition-all text-[color:var(--cm-ink-2)] relative"
-                          >
-                            <span className={mobileTab === "text" ? "text-[color:var(--cm-ink)]" : ""}>文字</span>
-                            <div
-                              className={cn(
-                                "absolute bottom-0.5 left-1/2 -translate-x-1/2 h-0.5 rounded-full bg-[color:var(--cm-brass)] transition-all duration-200",
-                                mobileTab === "text" ? "w-6 opacity-100" : "w-0 opacity-0"
-                              )}
-                            />
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (mobileTab === "crop") {
-                                cropModeWantedRef.current = false;
-                                setIsCropMode(false);
-                                setMobileTab("presets");
-                                return;
-                              }
-                              setMobileTab("crop");
-                              setIsPickerMode(null);
-                            }}
-                            className="flex-1 py-2 rounded-lg text-sm font-medium transition-all text-[color:var(--cm-ink-2)] relative"
-                          >
-                            <span className={mobileTab === "crop" ? "text-[color:var(--cm-ink)]" : ""}>裁剪</span>
-                            <div
-                              className={cn(
-                                "absolute bottom-0.5 left-1/2 -translate-x-1/2 h-0.5 rounded-full bg-[color:var(--cm-brass)] transition-all duration-200",
-                                mobileTab === "crop" ? "w-6 opacity-100" : "w-0 opacity-0"
-                              )}
-                            />
-                          </button>
-                        </div>
+                        <span className={mobileTab === "presets" ? "text-[color:var(--cm-ink)]" : ""}>配色</span>
+                        <div className={cn("absolute bottom-0.5 left-1/2 -translate-x-1/2 h-0.5 rounded-full bg-[color:var(--cm-brass)] transition-all duration-200", mobileTab === "presets" ? "w-6 opacity-100" : "w-0 opacity-0")} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          cropModeWantedRef.current = false;
+                          setIsCropMode(false);
+                          setMobileTab("colors");
+                        }}
+                        className="flex-1 py-2 rounded-lg text-sm font-medium transition-all text-[color:var(--cm-ink-2)] relative"
+                      >
+                        <span className={mobileTab === "colors" ? "text-[color:var(--cm-ink)]" : ""}>颜色</span>
+                        <div className={cn("absolute bottom-0.5 left-1/2 -translate-x-1/2 h-0.5 rounded-full bg-[color:var(--cm-brass)] transition-all duration-200", mobileTab === "colors" ? "w-6 opacity-100" : "w-0 opacity-0")} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          cropModeWantedRef.current = false;
+                          setIsCropMode(false);
+                          setMobileTab("text");
+                        }}
+                        className="flex-1 py-2 rounded-lg text-sm font-medium transition-all text-[color:var(--cm-ink-2)] relative"
+                      >
+                        <span className={mobileTab === "text" ? "text-[color:var(--cm-ink)]" : ""}>文字</span>
+                        <div className={cn("absolute bottom-0.5 left-1/2 -translate-x-1/2 h-0.5 rounded-full bg-[color:var(--cm-brass)] transition-all duration-200", mobileTab === "text" ? "w-6 opacity-100" : "w-0 opacity-0")} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (mobileTab === "crop") {
+                            cropModeWantedRef.current = false;
+                            setIsCropMode(false);
+                            setMobileTab("presets");
+                            return;
+                          }
+                          setMobileTab("crop");
+                          setIsPickerMode(null);
+                        }}
+                        className="flex-1 py-2 rounded-lg text-sm font-medium transition-all text-[color:var(--cm-ink-2)] relative"
+                      >
+                        <span className={mobileTab === "crop" ? "text-[color:var(--cm-ink)]" : ""}>裁剪</span>
+                        <div className={cn("absolute bottom-0.5 left-1/2 -translate-x-1/2 h-0.5 rounded-full bg-[color:var(--cm-brass)] transition-all duration-200", mobileTab === "crop" ? "w-6 opacity-100" : "w-0 opacity-0")} />
+                      </button>
+                    </div>
+                  </div>
 
-                        <div className="space-y-3">
-                          {mobileTab === "presets" && (
+                  <div
+                    ref={mobileScrollRef}
+                    className="flex-1 overflow-y-auto overscroll-contain px-4 pb-[calc(env(safe-area-inset-bottom)+104px)]"
+                    style={{ WebkitOverflowScrolling: "touch" }}
+                  >
+                    <div
+                      ref={mobileControlsRef}
+                      className="cm-controls-panel bg-[color:var(--cm-surface)] w-full max-w-[420px] mx-auto rounded-2xl border border-[color:var(--cm-border)] p-4 space-y-3"
+                    >
+                      <div className="space-y-3">
+                        {mobileTab === "presets" && (
                             <div className="tab-panel space-y-2">
                             <div className="scheme-scroll flex gap-2 overflow-x-auto py-2 -mx-1 px-1">
                                 {schemes
@@ -3147,7 +3132,6 @@ export default function ImageEditor() {
                   </div>
                 </div>
               </div>
-            </div>
 
           <div className="hidden lg:flex lg:col-span-7 lg:col-start-1 lg:row-span-2 lg:sticky lg:top-3">
                 <div className="w-full h-full">
