@@ -2311,7 +2311,7 @@ export default function ImageEditor() {
       : null;
 
   const modeHintsPortal =
-    typeof document !== "undefined" && (isCropMode || isRangeMode || isPickerMode)
+    typeof document !== "undefined" && !exportPreviewUrl && (isCropMode || isRangeMode || isPickerMode)
       ? createPortal(
           <div className="fixed inset-x-0 top-[env(safe-area-inset-top)] z-[100] pointer-events-none lg:hidden flex justify-center pt-1">
             <div className="bg-white/90 backdrop-blur-md text-gray-800 px-3 py-1.5 rounded-full text-xs font-medium shadow-lg flex items-center gap-2 border border-gray-200/50">
