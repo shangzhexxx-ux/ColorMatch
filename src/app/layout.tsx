@@ -52,8 +52,8 @@ const merriweather = Merriweather({
 });
 
 export const metadata: Metadata = {
-  title: "Color Match Live - 小红书风格排版工具",
-  description: "快速生成小红书风格的配图工具",
+  title: "Color Match - 智能配色排版工具",
+  description: "快速生成精美配图的智能配色工具",
 };
 
 export const viewport: Viewport = {
