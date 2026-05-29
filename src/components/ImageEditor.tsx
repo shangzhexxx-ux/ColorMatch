@@ -1002,11 +1002,12 @@ export default function ImageEditor() {
       const locality = pick(data && data.locality);
       const result = city || locality;
       if (result) {
-        const capitalizeWords = (str: string) => {
-          return str.replace(/\b\w/g, c => c.toUpperCase());
+        const toTitleCase = (str: string) => {
+          const lower = str.toLowerCase();
+          return lower.replace(/\b\w/g, c => c.toUpperCase());
         };
-        console.log("[ColorMatch] City result:", capitalizeWords(result));
-        return capitalizeWords(result);
+        console.log("[ColorMatch] City result:", toTitleCase(result));
+        return toTitleCase(result);
       }
       console.log("[ColorMatch] City result:", result);
       return result;
