@@ -2402,12 +2402,12 @@ export default function ImageEditor() {
               <div className="w-[92vw] max-w-[420px] h-6" />
               <div
                 ref={mobilePreviewRef}
-                className="cm-preview-shell relative w-[92vw] max-w-[420px] mx-auto flex justify-center bg-[color:var(--cm-surface)] p-2 rounded-2xl border border-[color:var(--cm-border)] items-center"
+                className="cm-preview-shell relative w-[92vw] max-w-[420px] mx-auto flex justify-center items-center bg-[color:var(--cm-surface)] p-2 rounded-2xl border border-[color:var(--cm-border)]"
                 style={{ height: "35svh" }}
               >
                         <div
                           ref={mobilePreviewCardRef}
-                          className="cm-output-card relative w-full h-full rounded-lg overflow-hidden bg-[color:var(--cm-surface)] grid"
+                          className="cm-output-card relative max-h-[35svh] mx-auto rounded-lg overflow-hidden bg-[color:var(--cm-surface)] grid"
                           style={
                             isPortrait
                               ? { gridTemplateColumns: `${portraitStripPct}% 1fr`, touchAction: isRangeMode && !isCropMode && !isPickerMode ? "none" : undefined }
