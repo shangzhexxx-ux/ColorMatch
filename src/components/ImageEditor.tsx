@@ -3045,7 +3045,7 @@ export default function ImageEditor() {
                                 locationManuallyEditedRef.current = true;
                                 setLocation("");
                               }}
-                              className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-[color:var(--cm-surface-2)] text-[color:var(--cm-ink-2)] flex items-center justify-center"
+                              className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-[color:var(--cm-surface-2)] text-[color:var(--cm-ink-2)] flex items-center justify-center"
                             >
                               <X className="w-4 h-4" />
                             </button>
@@ -3074,7 +3074,7 @@ export default function ImageEditor() {
                                 dateManuallyEditedRef.current = true;
                                 setDate("");
                               }}
-                              className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-[color:var(--cm-surface-2)] text-[color:var(--cm-ink-2)] flex items-center justify-center"
+                              className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-[color:var(--cm-surface-2)] text-[color:var(--cm-ink-2)] flex items-center justify-center"
                             >
                               <X className="w-4 h-4" />
                             </button>
