@@ -1002,11 +1002,29 @@ export default function ImageEditor() {
       const locality = pick(data && data.locality);
       const result = city || locality;
       if (result) {
-        const toPascalCase = (str: string) => {
-          return str.replace(/\b\w/g, c => c.toUpperCase());
+        const capitalizeFirstOfEachWord = (str: string) => {
+          let upper = true;
+          return str.split('').map(c => {
+            if (c >= 'a' && c <= 'z') {
+              if (upper) {
+                upper = false;
+                return c.toUpperCase();
+              }
+              return c;
+            }
+            if (c >= 'A' && c <= 'Z') {
+              if (upper) {
+                upper = false;
+                return c;
+              }
+              return c.toLowerCase();
+            }
+            upper = true;
+            return c;
+          }).join('');
         };
-        console.log("[ColorMatch] City result:", toPascalCase(result));
-        return toPascalCase(result);
+        console.log("[ColorMatch] City result:", capitalizeFirstOfEachWord(result));
+        return capitalizeFirstOfEachWord(result);
       }
       console.log("[ColorMatch] City result:", result);
       return result;
