@@ -2781,7 +2781,7 @@ export default function ImageEditor() {
                             <div className="grid grid-cols-[52px_52px_minmax(0,1fr)] items-center gap-2">
                               <label className="relative cursor-pointer group">
                                 <div
-                                  className="w-[52px] h-[52px] rounded-xl border-2 border-[color:var(--cm-border-strong)] shadow-inner overflow-hidden transition-all group-hover:border-[color:var(--cm-brass)] relative"
+                                  className="w-[44px] h-[44px] rounded-xl border-2 border-[color:var(--cm-border-strong)] shadow-inner overflow-hidden transition-all group-hover:border-[color:var(--cm-brass)] relative"
                                   style={{ backgroundColor: customBgColor || "#e5e5e5" }}
                                 >
                                   <Palette
@@ -2806,7 +2806,7 @@ export default function ImageEditor() {
                                   }
                                 }}
                                 className={cn(
-                                  "w-[52px] h-[52px] rounded-xl border-2 transition-all flex items-center justify-center",
+                                  "w-[44px] h-[44px] rounded-xl border-2 transition-all flex items-center justify-center",
                                   isPickerMode === "bg"
                                     ? "border-transparent ring-2 ring-[color:var(--cm-brass)] bg-[color:color-mix(in_srgb,var(--cm-brass)_6%,transparent)]"
                                     : "border-[color:var(--cm-border-strong)] bg-[color:var(--cm-surface)] hover:border-[color:color-mix(in_srgb,var(--cm-brass)_44%,var(--cm-border-strong))]"
@@ -2822,7 +2822,7 @@ export default function ImageEditor() {
                                 onFocus={handleMobileFieldFocus}
                                 onBlur={handleMobileFieldBlur}
                                 onKeyDown={handleMobileKeyDown}
-                                className="min-w-0 w-full px-3 py-3 bg-[color:var(--cm-surface)] border-2 border-[color:var(--cm-border-strong)] rounded-xl text-base font-mono uppercase appearance-none shadow-none focus:outline-none focus:!border-transparent focus:ring-2 focus:ring-[color:var(--cm-brass)]"
+                                className="min-w-0 w-full px-3 py-2 bg-[color:var(--cm-surface)] border-2 border-[color:var(--cm-border-strong)] rounded-xl text-base font-mono uppercase appearance-none shadow-none focus:outline-none focus:!border-transparent focus:ring-2 focus:ring-[color:var(--cm-brass)]"
                                 maxLength={7}
                               />
                             </div>
@@ -2832,7 +2832,7 @@ export default function ImageEditor() {
                             <div className="grid grid-cols-[52px_52px_minmax(0,1fr)] items-center gap-2">
                               <label className="relative cursor-pointer group">
                                 <div
-                                  className="w-[52px] h-[52px] rounded-xl border-2 border-[color:var(--cm-border-strong)] shadow-inner overflow-hidden transition-all group-hover:border-[color:var(--cm-brass)] relative"
+                                  className="w-[44px] h-[44px] rounded-xl border-2 border-[color:var(--cm-border-strong)] shadow-inner overflow-hidden transition-all group-hover:border-[color:var(--cm-brass)] relative"
                                   style={{ backgroundColor: customTextColor || "#171717" }}
                                 >
                                   <TypeIcon
@@ -2857,7 +2857,7 @@ export default function ImageEditor() {
                                   }
                                 }}
                                 className={cn(
-                                  "w-[52px] h-[52px] rounded-xl border-2 transition-all flex items-center justify-center",
+                                  "w-[44px] h-[44px] rounded-xl border-2 transition-all flex items-center justify-center",
                                   isPickerMode === "text"
                                     ? "border-transparent ring-2 ring-[color:var(--cm-brass)] bg-[color:color-mix(in_srgb,var(--cm-brass)_12%,transparent)]"
                                     : "border-[color:var(--cm-border-strong)] bg-[color:var(--cm-surface)] hover:border-[color:color-mix(in_srgb,var(--cm-brass)_44%,var(--cm-border-strong))]"
@@ -2873,7 +2873,7 @@ export default function ImageEditor() {
                                 onFocus={handleMobileFieldFocus}
                                 onBlur={handleMobileFieldBlur}
                                 onKeyDown={handleMobileKeyDown}
-                                className="min-w-0 w-full px-3 py-3 bg-[color:var(--cm-surface)] border-2 border-[color:var(--cm-border-strong)] rounded-xl text-base font-mono uppercase appearance-none shadow-none focus:outline-none focus:!border-transparent focus:ring-2 focus:ring-[color:var(--cm-brass)]"
+                                className="min-w-0 w-full px-3 py-2 bg-[color:var(--cm-surface)] border-2 border-[color:var(--cm-border-strong)] rounded-xl text-base font-mono uppercase appearance-none shadow-none focus:outline-none focus:!border-transparent focus:ring-2 focus:ring-[color:var(--cm-brass)]"
                                 maxLength={7}
                               />
                             </div>
