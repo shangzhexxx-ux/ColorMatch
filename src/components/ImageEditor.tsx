@@ -2397,18 +2397,14 @@ export default function ImageEditor() {
       {image && (
         <>
         <div className="cm-mobile-stage lg:hidden fixed inset-0 z-[60] flex flex-col">
-                  <div
-                    ref={mobileScrollRef}
-                    className="flex-1 overflow-y-auto overscroll-contain"
-                    style={{ WebkitOverflowScrolling: "touch" }}
-                  >
-                    <div className="px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+104px)] flex flex-col items-center gap-2">
-                      <div className="w-[92vw] max-w-[420px] h-6" /> {/* 固定占位空间 */}
-                      <div
-                        ref={mobilePreviewRef}
-                        className="cm-preview-shell relative w-[92vw] max-w-[420px] sm:max-w-[430px] mx-auto flex justify-center bg-[color:var(--cm-surface)] p-2 sm:p-3 rounded-2xl border border-[color:var(--cm-border)] items-center"
-                        style={{ minHeight: "50svh" }}
-                      >
+          <div className="flex flex-col items-center pt-2">
+            <div className="px-4 flex flex-col items-center gap-2 w-full max-w-[420px]">
+              <div className="w-[92vw] h-6" /> {/* 固定占位空间 */}
+              <div
+                ref={mobilePreviewRef}
+                className="cm-preview-shell relative w-[92vw] mx-auto flex justify-center bg-[color:var(--cm-surface)] p-2 sm:p-3 rounded-2xl border border-[color:var(--cm-border)] items-center"
+                style={{ maxWidth: "420px" }}
+              >
                         <div
                           ref={mobilePreviewCardRef}
                           className="cm-output-card relative h-[50svh] max-h-[520px] aspect-[3/4] rounded-lg overflow-hidden bg-[color:var(--cm-surface)] grid"
@@ -2658,10 +2654,11 @@ export default function ImageEditor() {
                         </div>
                       </div>
 
-                      <div
-                        ref={mobileControlsRef}
-                        className="cm-controls-panel bg-[color:var(--cm-surface)] w-[92vw] max-w-[420px] sm:max-w-[430px] mt-0.5 rounded-2xl border border-[color:var(--cm-border)] p-4 space-y-3"
-                      >
+                      <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-[calc(env(safe-area-inset-bottom)+104px)]" style={{ WebkitOverflowScrolling: "touch" }}>
+                        <div
+                          ref={mobileControlsRef}
+                          className="cm-controls-panel bg-[color:var(--cm-surface)] w-full max-w-[420px] sm:max-w-[430px] mt-0.5 mx-auto rounded-2xl border border-[color:var(--cm-border)] p-4 space-y-3"
+                        >
                         <div className="cm-tabbar flex rounded-xl p-0.5 gap-1">
                           <button
                             onClick={() => {
@@ -3148,6 +3145,7 @@ export default function ImageEditor() {
                 </div>
               </div>
             </div>
+          </div>
 
           <div className="hidden lg:flex lg:col-span-7 lg:col-start-1 lg:row-span-2 lg:sticky lg:top-3">
                 <div className="w-full h-full">
