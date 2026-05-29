@@ -155,27 +155,27 @@ export default function ImageEditor() {
   const mobilePreviewFontPx = (() => {
     try {
       const card = mobilePreviewCardRef.current;
-      if (!card) return (isPortrait ? 13 : 15) * textScale;
+      if (!card) return (isPortrait ? 9 : 15) * textScale;
       const rect = card.getBoundingClientRect();
       const w = rect.width;
       const h = rect.height;
-      if (w <= 0 || h <= 0) return (isPortrait ? 13 : 15) * textScale;
-      const baseFontPx = isPortrait ? 13 : 15;
+      if (w <= 0 || h <= 0) return (isPortrait ? 9 : 15) * textScale;
+      const baseFontPx = isPortrait ? 9 : 15;
       return baseFontPx * textScale;
-    } catch { return (isPortrait ? 13 : 15) * textScale; }
+    } catch { return (isPortrait ? 9 : 15) * textScale; }
   })();
 
   const desktopPreviewFontPx = (() => {
     try {
       const card = desktopPreviewCardRef.current;
-      if (!card) return (isPortrait ? 13 : 15) * textScale;
+      if (!card) return (isPortrait ? 9 : 15) * textScale;
       const rect = card.getBoundingClientRect();
       const w = rect.width;
       const h = rect.height;
-      if (w <= 0 || h <= 0) return (isPortrait ? 13 : 15) * textScale;
-      const baseFontPx = isPortrait ? 13 : 15;
+      if (w <= 0 || h <= 0) return (isPortrait ? 9 : 15) * textScale;
+      const baseFontPx = isPortrait ? 9 : 15;
       return baseFontPx * textScale;
-    } catch { return (isPortrait ? 13 : 15) * textScale; }
+    } catch { return (isPortrait ? 9 : 15) * textScale; }
   })();
 
   const cropPointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
@@ -2095,9 +2095,9 @@ export default function ImageEditor() {
 
     const basePreviewFontPx = (() => {
       if (isMobileExport) {
-        return (isPortrait ? 13 : 15) * textScale;
+        return (isPortrait ? 9 : 15) * textScale;
       } else {
-        return (isPortrait ? 13 : 15) * textScale;
+        return (isPortrait ? 9 : 15) * textScale;
       }
     })();
 
