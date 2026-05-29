@@ -2095,9 +2095,9 @@ export default function ImageEditor() {
 
     const basePreviewFontPx = (() => {
       if (isMobileExport) {
-        return (isPortrait ? 9 : 15) * textScale;
+        return (isPortrait ? 9 : 9) * textScale;
       } else {
-        return (isPortrait ? 9 : 15) * textScale;
+        return (isPortrait ? 13 : 15) * textScale;
       }
     })();
 
